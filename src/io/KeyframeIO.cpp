@@ -1,4 +1,5 @@
 #include "io/KeyframeIO.hpp"
+#include <algorithm>
 
 
 void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffset, ETrackType type)
@@ -44,4 +45,10 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
 
 void CTrackCommon::SaveTrack(bStream::CStream* stream, bStream::CMemoryStream& framesOut, uint32_t keyframeDataOffset, ETrackType type){
 
+}
+
+void CTrackCommon::DeleteKeyframe(uint32_t keyframe) {
+	if(!std::count(mKeys.begin(), mKeys.end(), keyframe)) return; // keyframe doesnt exist
+	mKeys.erase(std::remove(mKeys.begin(), mKeys.end(), keyframe), mKeys.end());
+	mFrames.erase(keyframe);
 }

@@ -32,6 +32,24 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 				selected = true;
 			}
 		}
+
+		if(ImGui::IsKeyPressed(ImGuiKey_Delete)){
+			*keyframeSelection = -1;
+			selected = false;
+
+			uint32_t selected_count = ImGui::GetNeoKeyframeSelectionSize();
+			ImGui::FrameIndexType * toRemove = new ImGui::FrameIndexType[selected_count];
+
+			ImGui::GetNeoKeyframeSelection(toRemove);
+
+			for(int i = 0; i < selected_count; i++){
+				if(toRemove[i] <= 0) continue;
+				track->DeleteKeyframe((uint32_t)toRemove[i]);
+			}
+
+			delete toRemove;
+		}
+
 	ImGui::EndNeoTimeLine();
 
 	return selected;
@@ -66,21 +84,21 @@ bool UCammieContext::Update(float deltaTime) {
 	if(ImGui::IsKeyPressed(ImGuiKey_Space)){
 		if(!std::count(XPositionTrack.mKeys.begin(), XPositionTrack.mKeys.end(), mCurrentFrame)){
 			XPositionTrack.mKeys.push_back(mCurrentFrame);
-			XPositionTrack.mFrames.insert({mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().x, 0, 0}});
+			XPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().x, 0, 0}});
 		} else {
 			XPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().x;
 		}
 
 		if(!std::count(YPositionTrack.mKeys.begin(), YPositionTrack.mKeys.end(), mCurrentFrame)){
 			YPositionTrack.mKeys.push_back(mCurrentFrame);
-			YPositionTrack.mFrames.insert({mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().y, 0, 0}});
+			YPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().y, 0, 0}});
 		} else {
 			YPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().y;
 		}
 
 		if(!std::count(ZPositionTrack.mKeys.begin(), ZPositionTrack.mKeys.end(), mCurrentFrame)){
 			ZPositionTrack.mKeys.push_back(mCurrentFrame);
-			ZPositionTrack.mFrames.insert({mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().z, 0, 0}});
+			ZPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().z, 0, 0}});
 		} else {
 			ZPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().x;
 		}
@@ -123,7 +141,7 @@ void UCammieContext::Render(float deltaTime) {
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 	
 	ImGui::Begin("mainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-		ImGui::Text("Camera Animation");
+		ImGui::Text(fmt::format("Camera Animation [{0}/{1}]", mCurrentFrame, mEndFrame).data());
 		ImGui::SameLine();
 		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; }
 		if(mPlaying){ ImGui::SameLine(); if(ImGui::Button("Stop")) mPlaying = false; }

@@ -28,6 +28,7 @@ public:
 
     void LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffset, ETrackType type);
     void SaveTrack(bStream::CStream* stream,  bStream::CMemoryStream& framesOut, uint32_t keyframeDataOffset, ETrackType type);
+	void DeleteKeyframe(uint32_t keyframe);
 
     CTrackCommon(){}
     ~CTrackCommon(){}
