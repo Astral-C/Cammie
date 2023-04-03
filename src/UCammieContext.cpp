@@ -1,5 +1,6 @@
 #include "UCammieContext.hpp"
 
+#include "UPointSpriteManager.hpp"
 #include "io/KeyframeIO.hpp"
 #include "imgui_neo_internal.h"
 #include "imgui_neo_sequencer.h"
@@ -70,6 +71,17 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 
 UCammieContext::UCammieContext(){
 	mGrid.Init();
+	mBillboardManager.Init(128, 2);
+	mBillboardManager.SetBillboardTexture("res/camera.png", 0);
+	mBillboardManager.SetBillboardTexture("res/target.png", 1);
+
+	mBillboardManager.mBillboards.push_back(CPointSprite());
+	mBillboardManager.mBillboards.push_back(CPointSprite());
+
+	mBillboardManager.mBillboards[0].Texture = 0;
+	mBillboardManager.mBillboards[0].SpriteSize = 204800;
+	mBillboardManager.mBillboards[1].Texture = 1;
+	mBillboardManager.mBillboards[1].SpriteSize = 204800;
 
 	ImGuiIO& io = ImGui::GetIO();
     io.Fonts->AddFontFromFileTTF("res/NotoSansJP-Regular.otf", 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
@@ -143,6 +155,8 @@ void UCammieContext::Render(float deltaTime) {
 	ImGui::Begin("mainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 		ImGui::Text(fmt::format("Camera Animation [{0}/{1}]", mCurrentFrame, mEndFrame).data());
 		ImGui::SameLine();
+		ImGui::Checkbox("Camera Sight", &mViewCamera);
+		ImGui::SameLine();
 		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; }
 		if(mPlaying){ ImGui::SameLine(); if(ImGui::Button("Stop")) mPlaying = false; }
 		ImGui::Separator();
@@ -203,25 +217,31 @@ void UCammieContext::Render(float deltaTime) {
 	//Render Models here
 
 	mGrid.Render(mCamera.GetPosition(), mCamera.GetProjectionMatrix(), mCamera.GetViewMatrix());
+	mBillboardManager.Draw(&mCamera);
 
-	if(mPlaying && mCurrentFrame < mEndFrame || mUpdateCameraPosition){
-		glm::vec3 eyePos = mCamera.GetEye();
-		glm::vec3 centerPos = mCamera.GetCenter();
+	glm::vec3 eyePos;// = mCamera.GetEye();
+	glm::vec3 centerPos;// = mCamera.GetCenter();
 
-		eyePos.x = UpdateCameraAnimationTrack(XPositionTrack, mCurrentFrame);
-		eyePos.y = UpdateCameraAnimationTrack(YPositionTrack, mCurrentFrame);
-		eyePos.z = UpdateCameraAnimationTrack(ZPositionTrack, mCurrentFrame);
+	eyePos.x = UpdateCameraAnimationTrack(XPositionTrack, mCurrentFrame);
+	eyePos.y = UpdateCameraAnimationTrack(YPositionTrack, mCurrentFrame);
+	eyePos.z = UpdateCameraAnimationTrack(ZPositionTrack, mCurrentFrame);
 
-		centerPos.x = UpdateCameraAnimationTrack(XTargetTrack, mCurrentFrame);;
-		centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame);
-		centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame);
+	centerPos.x = UpdateCameraAnimationTrack(XTargetTrack, mCurrentFrame);
+	centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame);
+	centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame);
 
-		float twist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
-		mCamera.mFovy = UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame);
+	mBillboardManager.mBillboards[1].Position = centerPos;
+	mBillboardManager.mBillboards[0].Position = eyePos;
 
+	float twist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
 
-		mCamera.SetCenter(centerPos);
-		mCamera.SetEye(eyePos);
+	if((mPlaying && (mCurrentFrame != mEndFrame)) || mUpdateCameraPosition){
+		if(mViewCamera){
+			mCamera.mFovy = UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame);
+
+			mCamera.SetCenter(centerPos);
+			mCamera.SetEye(eyePos);
+		}
 
 		if(!mUpdateCameraPosition) mCurrentFrame++;
 		mUpdateCameraPosition = false;

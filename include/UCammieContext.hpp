@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <memory>
 #include <UGrid.hpp>
+#include <UPointSpriteManager.hpp>
 
 namespace bStream { class CStream; }
 class J3DModelData;
@@ -36,6 +37,7 @@ class UCammieContext {
 
 	USceneCamera mCamera;
 	UGrid mGrid;
+	CPointSpriteManager mBillboardManager;
 
 	//std::vector<std::unique_ptr<GalaxyZone>();
 
@@ -51,6 +53,7 @@ class UCammieContext {
 	bool mTargetOpen { false };
 	bool mPlaying { false };
 	bool mUpdateCameraPosition { false };
+	bool mViewCamera { false };
 
 	void RenderMainWindow(float deltaTime);
 	void RenderPanels(float deltaTime);
