@@ -63,6 +63,29 @@ UCammieContext::UCammieContext(){
 bool UCammieContext::Update(float deltaTime) {
 	mCamera.Update(deltaTime);
 
+	if(ImGui::IsKeyPressed(ImGuiKey_Space)){
+		if(!std::count(XPositionTrack.mKeys.begin(), XPositionTrack.mKeys.end(), mCurrentFrame)){
+			XPositionTrack.mKeys.push_back(mCurrentFrame);
+			XPositionTrack.mFrames.insert({mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().x, 0, 0}});
+		} else {
+			XPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().x;
+		}
+
+		if(!std::count(YPositionTrack.mKeys.begin(), YPositionTrack.mKeys.end(), mCurrentFrame)){
+			YPositionTrack.mKeys.push_back(mCurrentFrame);
+			YPositionTrack.mFrames.insert({mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().y, 0, 0}});
+		} else {
+			YPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().y;
+		}
+
+		if(!std::count(ZPositionTrack.mKeys.begin(), ZPositionTrack.mKeys.end(), mCurrentFrame)){
+			ZPositionTrack.mKeys.push_back(mCurrentFrame);
+			ZPositionTrack.mFrames.insert({mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().z, 0, 0}});
+		} else {
+			ZPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().x;
+		}
+    }
+
 	return true;
 }
 
@@ -132,10 +155,23 @@ void UCammieContext::Render(float deltaTime) {
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 
 	ImGui::Begin("detailWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-		ImGui::Text("Keyframe Settings");
+		ImGui::Text("Keyframe");
 		ImGui::Separator();
 		if(selectedKeyframe != -1 && selectedTrack != nullptr && selectedTrack->mFrames.count(selectedKeyframe) != 0){
 			ImGui::InputFloat("Value", &selectedTrack->mFrames.at(selectedKeyframe).value);
+
+			if(selectedTrack->mType == ETrackType::CKAN){
+				if(selectedTrack->mSymmetricSlope){
+					ImGui::InputFloat("Slope", &selectedTrack->mFrames.at(selectedKeyframe).inslope);
+				} else {
+					ImGui::InputFloat("In Slope", &selectedTrack->mFrames.at(selectedKeyframe).inslope);
+					ImGui::InputFloat("Out Slope", &selectedTrack->mFrames.at(selectedKeyframe).outslope);
+	            }
+            }
+			if(ImGui::Button("Set Camera to Keyframe")){
+				mUpdateCameraPosition = true;
+				mCurrentFrame = selectedKeyframe;
+			}
 		}
 	ImGui::End();
 
@@ -150,105 +186,27 @@ void UCammieContext::Render(float deltaTime) {
 
 	mGrid.Render(mCamera.GetPosition(), mCamera.GetProjectionMatrix(), mCamera.GetViewMatrix());
 
-	if(mPlaying && mCurrentFrame < mEndFrame){
-		CKeyframeCommon nextKeyframePosX, prevKeyframePosX;
-		CKeyframeCommon nextKeyframePosY, prevKeyframePosY;
-		CKeyframeCommon nextKeyframePosZ, prevKeyframePosZ;
-
-		CKeyframeCommon nextKeyframeTargetX, prevKeyframeTargetX;
-		CKeyframeCommon nextKeyframeTargetY, prevKeyframeTargetY;
-		CKeyframeCommon nextKeyframeTargetZ, prevKeyframeTargetZ;
-
-		CKeyframeCommon nextKeyframeTwist, prevKeyframeTwist;
-		CKeyframeCommon nextKeyframeFov, prevKeyframeFov;
-
-		for(auto keyframe : XPositionTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframePosX = XPositionTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframePosX = XPositionTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
-		for(auto keyframe : YPositionTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframePosY = YPositionTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframePosY = YPositionTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
-		for(auto keyframe : ZPositionTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframePosZ = ZPositionTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframePosZ = ZPositionTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
-		//Get nearest Target Keyframes
-
-		for(auto keyframe : XTargetTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframeTargetX = XTargetTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframeTargetX = XTargetTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
-		for(auto keyframe : YTargetTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframeTargetY = YTargetTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframeTargetY = YTargetTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
-		for(auto keyframe : ZTargetTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframeTargetZ = ZTargetTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframeTargetZ = ZTargetTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
-		// Get nearest FOV and Twist Keyframes
-
-		for(auto keyframe : FovYTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframeFov = FovYTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframeFov = FovYTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
-		for(auto keyframe : TwistTrack.mKeys){
-			if(mCurrentFrame >= keyframe) prevKeyframeTwist = TwistTrack.mFrames[keyframe];
-			if(mCurrentFrame < keyframe) {
-				nextKeyframeTwist = TwistTrack.mFrames[keyframe];
-				break;
-			}
-		}
-
+	if(mPlaying && mCurrentFrame < mEndFrame || mUpdateCameraPosition){
 		glm::vec3 eyePos = mCamera.GetEye();
 		glm::vec3 centerPos = mCamera.GetCenter();
 
-		eyePos.x = glm::mix(prevKeyframePosX.value, nextKeyframePosX.value, (mCurrentFrame - prevKeyframePosX.frame) / (nextKeyframePosX.frame - prevKeyframePosX.frame));
-		eyePos.y = glm::mix(prevKeyframePosY.value, nextKeyframePosY.value, (mCurrentFrame - prevKeyframePosY.frame) / (nextKeyframePosY.frame - prevKeyframePosY.frame));
-		eyePos.z = glm::mix(prevKeyframePosZ.value, nextKeyframePosZ.value, (mCurrentFrame - prevKeyframePosZ.frame) / (nextKeyframePosZ.frame - prevKeyframePosZ.frame));
+		eyePos.x = UpdateCameraAnimationTrack(XPositionTrack, mCurrentFrame);
+		eyePos.y = UpdateCameraAnimationTrack(YPositionTrack, mCurrentFrame);
+		eyePos.z = UpdateCameraAnimationTrack(ZPositionTrack, mCurrentFrame);
 
-		centerPos.x = glm::mix(prevKeyframeTargetX.value, nextKeyframeTargetX.value, (mCurrentFrame - prevKeyframeTargetX.frame) / (nextKeyframeTargetX.frame - prevKeyframeTargetX.frame));
-		centerPos.y = glm::mix(prevKeyframeTargetY.value, nextKeyframeTargetY.value, (mCurrentFrame - prevKeyframeTargetY.frame) / (nextKeyframeTargetY.frame - prevKeyframeTargetY.frame));
-		centerPos.z = glm::mix(prevKeyframeTargetZ.value, nextKeyframeTargetZ.value, (mCurrentFrame - prevKeyframeTargetZ.frame) / (nextKeyframeTargetZ.frame - prevKeyframeTargetZ.frame));
+		centerPos.x = UpdateCameraAnimationTrack(XTargetTrack, mCurrentFrame);;
+		centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame);
+		centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame);
 
-		float twist = glm::mix(prevKeyframeTwist.value, nextKeyframeTwist.value, (mCurrentFrame - prevKeyframeTwist.frame) / (nextKeyframeTwist.frame - prevKeyframeTwist.frame));
-		mCamera.mFovy = glm::mix(prevKeyframeFov.value, nextKeyframeFov.value, (mCurrentFrame - prevKeyframeFov.frame) / (nextKeyframeFov.frame - prevKeyframeFov.frame));
+		float twist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
+		mCamera.mFovy = UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame);
 
 
 		mCamera.SetCenter(centerPos);
 		mCamera.SetEye(eyePos);
 
-		mCurrentFrame++;
+		if(!mUpdateCameraPosition) mCurrentFrame++;
+		mUpdateCameraPosition = false;
 	} else if(mPlaying && mCurrentFrame == mEndFrame){
 		mPlaying = false;
     }

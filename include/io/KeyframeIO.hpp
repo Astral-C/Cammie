@@ -19,10 +19,10 @@ struct CKeyframeCommon
 
 class CTrackCommon
 {
-    ETrackType mType;
-    
 
 public:
+	bool mSymmetricSlope;
+    ETrackType mType;
     std::vector<int32_t> mKeys;
     std::map<uint32_t, CKeyframeCommon> mFrames;
 

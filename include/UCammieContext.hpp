@@ -49,7 +49,8 @@ class UCammieContext {
 	bool mTextEditorActive { false };
 	bool mPositionOpen { false };
 	bool mTargetOpen { false };
-	bool mPlaying = false;
+	bool mPlaying { false };
+	bool mUpdateCameraPosition { false };
 
 	void RenderMainWindow(float deltaTime);
 	void RenderPanels(float deltaTime);

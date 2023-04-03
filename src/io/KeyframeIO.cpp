@@ -11,6 +11,7 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
 
     if(mType == ETrackType::CKAN){
         slopeFlags = stream->readInt32();
+		mSymmetricSlope = slopeFlags == 0;
     }
 
     size_t group = stream->tell();
