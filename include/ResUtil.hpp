@@ -22,6 +22,13 @@ namespace SResUtility
 			bool ReplaceArchiveFileData(GCarcfile* file, uint8_t* new_data, size_t new_data_size);
 			void Init();
 	};
+
+	class SOptions //any sort of options will be here
+	{
+		public:
+			std::string mRootPath;
+	};
 }
 
 extern SResUtility::SGCResourceManager GCResourceManager;
+extern SResUtility::SOptions Options;
