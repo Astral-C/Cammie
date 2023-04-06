@@ -360,7 +360,13 @@ Makefile
 cmake_install.cmake
 imgui.ini
 Cammie
-lib/*
+
+lib/fmt/
+lib/glfw/
+lib/imgui/
+lib/ImGuiFileDialog/
+lib/J3DUltra/
+lib/libgctools/
+
 *.bin
-starforge
 cammie

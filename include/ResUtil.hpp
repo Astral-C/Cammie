@@ -25,8 +25,12 @@ namespace SResUtility
 
 	class SOptions //any sort of options will be here
 	{
+		bool mSelectRootDialogOpen;
+		
 		public:
 			std::string mRootPath;
+
+			void RenderOptionMenu();
 	};
 }
 

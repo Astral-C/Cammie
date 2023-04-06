@@ -1,7 +1,10 @@
 #include "ResUtil.hpp"
-#include "imgui.h"
+#include <imgui.h>
+#include <ImGuiFileDialog.h>
+#include <fmt/core.h>
 
 SResUtility::SGCResourceManager GCResourceManager;
+SResUtility::SOptions Options;
 
 void SResUtility::SGCResourceManager::Init()
 {
@@ -101,6 +104,7 @@ bool SResUtility::SGCResourceManager::SaveArchiveCompressed(const char* path, GC
 	GCuint8* archiveCmp = new GCuint8[outSize];
 
 	gcSaveArchive(archive, archiveOut);
+	// TODO: Add option to save compressed for if we want to save a yaz0 compressed file
 	GCsize cmpSize = gcYay0Compress(&mResManagerContext, archiveOut, archiveCmp, outSize);
 	
 	std::ofstream fileStream;
@@ -112,4 +116,35 @@ bool SResUtility::SGCResourceManager::SaveArchiveCompressed(const char* path, GC
 	delete archiveCmp;
 
 	return true;
+}
+
+void SResUtility::SOptions::RenderOptionMenu(){
+	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+	if (ImGui::BeginPopupModal("Options", NULL, ImGuiWindowFlags_AlwaysAutoResize)){
+		ImGui::Text(fmt::format("Root Path: {0}", mRootPath == "" ? "(Not Set)" : mRootPath).data());
+		ImGui::SameLine();
+		if(ImGui::Button("Open")){
+			mSelectRootDialogOpen = true;
+		}
+		if(ImGui::Button("Close")){
+			ImGui::CloseCurrentPopup();
+		}
+
+		if(mSelectRootDialogOpen) ImGuiFileDialog::Instance()->OpenDialog("OpenRootDialog", "Choose Game Root", nullptr, ".");
+
+		if (ImGuiFileDialog::Instance()->Display("OpenRootDialog")) {
+			if (ImGuiFileDialog::Instance()->IsOk()) {
+				mRootPath = ImGuiFileDialog::Instance()->GetFilePathName();
+
+				mSelectRootDialogOpen = false;
+			} else {
+				mSelectRootDialogOpen = false;
+			}
+
+			ImGuiFileDialog::Instance()->Close();
+		}
+		ImGui::EndPopup();
+	}
 }

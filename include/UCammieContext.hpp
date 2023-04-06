@@ -9,6 +9,7 @@
 #include <memory>
 #include <UGrid.hpp>
 #include <UPointSpriteManager.hpp>
+#include <UGalaxy.hpp>
 
 namespace bStream { class CStream; }
 class J3DModelData;
@@ -38,6 +39,7 @@ class UCammieContext {
 	USceneCamera mCamera;
 	UGrid mGrid;
 	CPointSpriteManager mBillboardManager;
+	CGalaxyRenderer mGalaxyRenderer;
 
 	//std::vector<std::unique_ptr<GalaxyZone>();
 
@@ -46,6 +48,7 @@ class UCammieContext {
 	
 	bool bIsDockingSetUp { false };
 	bool bIsFileDialogOpen { false };
+	bool bIsGalaxyDialogOpen { false };
 	bool bIsSaveDialogOpen { false };
 	bool mSetLights { false };
 	bool mTextEditorActive { false };
@@ -54,6 +57,7 @@ class UCammieContext {
 	bool mPlaying { false };
 	bool mUpdateCameraPosition { false };
 	bool mViewCamera { false };
+	bool mOptionsOpen { false };
 
 	void RenderMainWindow(float deltaTime);
 	void RenderPanels(float deltaTime);

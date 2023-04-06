@@ -4,15 +4,24 @@
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
+#include <filesystem>
 
 #include <J3D/J3DModelLoader.hpp>
 #include <J3D/J3DModelData.hpp>
 #include <J3D/J3DUniformBufferObject.hpp>
 #include <J3D/J3DLight.hpp>
 #include <J3D/J3DModelInstance.hpp>
-
-static std::map<std::string, std::unique_ptr<J3DModelInstance>> ModelCache;
+#include "io/BcsvIO.hpp"
+#include "ResUtil.hpp"
 
 class CGalaxyRenderer {
-	std::map<std::string, std::vector<std::pair<std::string, glm::vec3>>> layers;
+	std::map<std::string, std::map<std::string, std::vector<std::pair<std::string, glm::vec3>>>> mZones;
+	std::map<std::string, std::pair<glm::vec3, glm::vec3>> mZoneTransforms;
+
+	std::vector<std::pair<std::string, glm::vec3>> LoadZoneLayer(GCarchive* zoneArchive, GCarcfile* layerDir, bool isMainGalaxyZone);
+	void LoadModel(std::string modelName);
+
+public:
+	void RenderGalaxy(float dt);
+	void LoadGalaxy(std::filesystem::path galaxy_path);
 };

@@ -4,6 +4,7 @@
 #include "io/KeyframeIO.hpp"
 #include "imgui_neo_internal.h"
 #include "imgui_neo_sequencer.h"
+#include "ResUtil.hpp"
 
 #include "util/UUIUtil.hpp"
 
@@ -20,6 +21,7 @@
 #include <bstream.h>
 #include <optional>
 #include "fmt/core.h"
+#include "ResUtil.hpp"
 
 
 bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSelection){
@@ -83,6 +85,8 @@ UCammieContext::UCammieContext(){
 	mBillboardManager.mBillboards[1].Texture = 1;
 	mBillboardManager.mBillboards[1].SpriteSize = 204800;
 
+	GCResourceManager.Init();
+
 	ImGuiIO& io = ImGui::GetIO();
     io.Fonts->AddFontFromFileTTF("res/NotoSansJP-Regular.otf", 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -91,7 +95,8 @@ UCammieContext::UCammieContext(){
 }
 
 bool UCammieContext::Update(float deltaTime) {
-	mCamera.Update(deltaTime);
+	
+	if(!(mPlaying && mViewCamera)) mCamera.Update(deltaTime);
 
 	if(ImGui::IsKeyPressed(ImGuiKey_Space)){
 		if(!std::count(XPositionTrack.mKeys.begin(), XPositionTrack.mKeys.end(), mCurrentFrame)){
@@ -218,6 +223,7 @@ void UCammieContext::Render(float deltaTime) {
 	//Render Models here
 
 	mGrid.Render(mCamera.GetPosition(), mCamera.GetProjectionMatrix(), mCamera.GetViewMatrix());
+	mGalaxyRenderer.RenderGalaxy(deltaTime);
 	mBillboardManager.Draw(&mCamera);
 
 	glm::vec3 eyePos;// = mCamera.GetEye();
@@ -257,14 +263,16 @@ void UCammieContext::RenderMainWindow(float deltaTime) {
 }
 
 void UCammieContext::RenderMenuBar() {
+	mOptionsOpen = false;
 	ImGui::BeginMainMenuBar();
 
 	if (ImGui::BeginMenu("File")) {
 		if (ImGui::MenuItem("Open...")) {
 			OpenModelCB();
 		}
-		if (ImGui::MenuItem("Open Zone...")) {
+		if (ImGui::MenuItem("Open Galaxy...")) {
 			//TODO: Open zone..
+			bIsGalaxyDialogOpen = true;
 		}
 		if (ImGui::MenuItem("Save...")) {
 			SaveModelCB();
@@ -276,6 +284,9 @@ void UCammieContext::RenderMenuBar() {
 		ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu("Edit")) {
+		if(ImGui::MenuItem("Settings")){
+			mOptionsOpen = true;
+		}
 		ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu("About")) {
@@ -286,6 +297,9 @@ void UCammieContext::RenderMenuBar() {
 
 	if (bIsFileDialogOpen) {
 		ImGuiFileDialog::Instance()->OpenDialog("OpenFileDialog", "Choose Camera File", "Camera Animation (*.canm){.canm}", ".");
+	}
+	if (bIsGalaxyDialogOpen){
+		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, Options.mRootPath == "" ? "." : Options.mRootPath);
 	}
 	if (bIsSaveDialogOpen) {
 		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Choose File", "J3D Models (*.bmd *.bdl){.bmd,.bdl}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
@@ -308,6 +322,24 @@ void UCammieContext::RenderMenuBar() {
 		ImGuiFileDialog::Instance()->Close();
 	}
 
+	if (ImGuiFileDialog::Instance()->Display("OpenGalaxyDialog")) {
+		if (ImGuiFileDialog::Instance()->IsOk()) {
+			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
+
+			try {
+				mGalaxyRenderer.LoadGalaxy(FilePath);
+			}
+			catch (std::exception e) {
+				std::cout << "Failed to load galaxy " << FilePath << "! Exception: " << e.what() << "\n";
+			}
+
+			bIsGalaxyDialogOpen = false;
+		}
+
+		ImGuiFileDialog::Instance()->Close();
+	}
+	
+
 	if (ImGuiFileDialog::Instance()->Display("SaveFileDialog")) {
 		if (ImGuiFileDialog::Instance()->IsOk()) {
 			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
@@ -323,6 +355,12 @@ void UCammieContext::RenderMenuBar() {
 
 		ImGuiFileDialog::Instance()->Close();
 	}
+
+	if(mOptionsOpen){
+		ImGui::OpenPopup("Options");
+	}
+
+	Options.RenderOptionMenu();
 }
 
 void UCammieContext::OpenModelCB() {
