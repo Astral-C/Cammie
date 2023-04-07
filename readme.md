@@ -10,4 +10,4 @@ Open a camn file from an _extracted_ archive, currently does not support opening
 
 ### Example usage
 
-[cammie_exampple](cammie_example.mp4)
+[cammie_example](example.mp4)
