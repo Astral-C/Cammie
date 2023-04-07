@@ -1,6 +1,6 @@
 #include "io/BcsvIO.hpp"
 
-SBcsvIO::SBcsvIO()
+SBcsvIO::SBcsvIO() : mData(nullptr), mStringTable(nullptr)
 {
 
 }
@@ -8,11 +8,11 @@ SBcsvIO::SBcsvIO()
 SBcsvIO::~SBcsvIO()
 {
 	if(mData != nullptr){
-		delete mData;
+		delete[] mData;
 	}
 
 	if(mStringTable != nullptr){
-		delete mStringTable;
+		delete[] mStringTable;
 	}
 }
 
