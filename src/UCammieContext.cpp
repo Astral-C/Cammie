@@ -74,8 +74,8 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 UCammieContext::UCammieContext(){
 	mGrid.Init();
 	mBillboardManager.Init(128, 2);
-	mBillboardManager.SetBillboardTexture("res/camera.png", 0);
-	mBillboardManager.SetBillboardTexture("res/target.png", 1);
+	mBillboardManager.SetBillboardTexture(std::filesystem::current_path() / "res/camera.png", 0);
+	mBillboardManager.SetBillboardTexture(std::filesystem::current_path() / "res/target.png", 1);
 
 	mBillboardManager.mBillboards.push_back(CPointSprite());
 	mBillboardManager.mBillboards.push_back(CPointSprite());
@@ -88,7 +88,7 @@ UCammieContext::UCammieContext(){
 	GCResourceManager.Init();
 
 	ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF("res/NotoSansJP-Regular.otf", 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+    io.Fonts->AddFontFromFileTTF((std::filesystem::current_path() / "res/NotoSansJP-Regular.otf").c_str(), 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	mCurrentFrame = mStartFrame = 0;
 	mEndFrame = 10;
@@ -100,24 +100,18 @@ bool UCammieContext::Update(float deltaTime) {
 
 	if(ImGui::IsKeyPressed(ImGuiKey_Space)){
 		if(!std::count(XPositionTrack.mKeys.begin(), XPositionTrack.mKeys.end(), mCurrentFrame)){
-			XPositionTrack.mKeys.push_back(mCurrentFrame);
+			XPositionTrack.mKeys.insert(std::upper_bound(XPositionTrack.mKeys.begin(), XPositionTrack.mKeys.end(), mCurrentFrame), mCurrentFrame);
 			XPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().x, 0, 0}});
-		} else {
-			XPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().x;
 		}
 
 		if(!std::count(YPositionTrack.mKeys.begin(), YPositionTrack.mKeys.end(), mCurrentFrame)){
-			YPositionTrack.mKeys.push_back(mCurrentFrame);
+			YPositionTrack.mKeys.insert(std::upper_bound(YPositionTrack.mKeys.begin(), YPositionTrack.mKeys.end(), mCurrentFrame), mCurrentFrame);
 			YPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().y, 0, 0}});
-		} else {
-			YPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().y;
 		}
 
 		if(!std::count(ZPositionTrack.mKeys.begin(), ZPositionTrack.mKeys.end(), mCurrentFrame)){
-			ZPositionTrack.mKeys.push_back(mCurrentFrame);
+			ZPositionTrack.mKeys.insert(std::upper_bound(ZPositionTrack.mKeys.begin(), ZPositionTrack.mKeys.end(), mCurrentFrame), mCurrentFrame);
 			ZPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().z, 0, 0}});
-		} else {
-			ZPositionTrack.mFrames.at(mCurrentFrame).value = mCamera.GetPosition().x;
 		}
     }
 
@@ -162,7 +156,7 @@ void UCammieContext::Render(float deltaTime) {
 		ImGui::SameLine();
 		ImGui::Checkbox("Camera Sight", &mViewCamera);
 		ImGui::SameLine();
-		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; }
+		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; mCamera.ResetView(); }
 		if(mPlaying){ ImGui::SameLine(); if(ImGui::Button("Stop")) mPlaying = false; }
 		ImGui::Separator();
 

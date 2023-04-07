@@ -24,7 +24,7 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
         CKeyframeCommon keyframe;
 
         keyframe.frame = stream->readFloat();
-        keyframe.value = stream->readFloat();
+        keyframe.value = stream->readFloat() / 4;
 
         if(mType == ETrackType::CKAN){
             keyframe.inslope = stream->readFloat();

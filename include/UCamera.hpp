@@ -46,6 +46,7 @@ public:
 
 	void SetCenter(glm::vec3 v) { mCenter = v; }
 	void SetEye(glm::vec3 v) { mEye = v; }
+	void ResetView() { mPitch = 0.0f; mYaw = glm::half_pi<float>(); mUp = UNIT_Y; mRight = UNIT_X; mForward = UNIT_Z;}
 
 	glm::vec3 GetCenter() { return mCenter; }
 	glm::vec3 GetEye() { return mEye; }

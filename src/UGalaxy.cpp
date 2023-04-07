@@ -3,7 +3,7 @@
 static std::map<std::string, std::shared_ptr<J3DModelInstance>> ModelCache;
 
 void CGalaxyRenderer::LoadModel(std::string modelName){
-	std::filesystem::path modelPath = std::filesystem::path(Options.mRootPath) / "files" / "ObjectData" / (modelName + ".arc");
+	std::filesystem::path modelPath = std::filesystem::path(Options.mRootPath) / "DATA" / "files" / "ObjectData" / (modelName + ".arc");
 	
 	if(std::filesystem::exists(modelPath)){
 		GCarchive modelArc;
@@ -35,8 +35,8 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 			for(size_t stageObjEntry = 0; stageObjEntry < StageObjInfo.GetEntryCount(); stageObjEntry++){
 				std::string zoneName = StageObjInfo.GetString(stageObjEntry, "name");
 				std::cout << "Loading StageObjInfo Entry " << zoneName << std::endl;
-				glm::vec3 position = {StageObjInfo.GetFloat(stageObjEntry, "pos_x"), StageObjInfo.GetFloat(stageObjEntry, "pos_y"), StageObjInfo.GetFloat(stageObjEntry, "pos_z")};
-				glm::vec3 rotation = {StageObjInfo.GetFloat(stageObjEntry, "dir_x"), StageObjInfo.GetFloat(stageObjEntry, "dir_y"), StageObjInfo.GetFloat(stageObjEntry, "dir_z")};
+				glm::vec3 position = {StageObjInfo.GetFloat(stageObjEntry, "pos_x") / 4, StageObjInfo.GetFloat(stageObjEntry, "pos_y") / 4, StageObjInfo.GetFloat(stageObjEntry, "pos_z") / 4};
+				glm::vec3 rotation = {StageObjInfo.GetFloat(stageObjEntry, "dir_x") / 4, StageObjInfo.GetFloat(stageObjEntry, "dir_y") / 4, StageObjInfo.GetFloat(stageObjEntry, "dir_z") / 4};
 				mZoneTransforms.insert({zoneName, {position, rotation}});
 			}
 		}
@@ -46,7 +46,7 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 			ObjInfo.Load(&ObjInfoStream);
 			for(size_t objEntry = 0; objEntry < ObjInfo.GetEntryCount(); objEntry++){
 				std::string modelName = ObjInfo.GetString(objEntry, "name");
-				glm::vec3 position = {ObjInfo.GetFloat(objEntry, "pos_x"), ObjInfo.GetFloat(objEntry, "pos_y"), ObjInfo.GetFloat(objEntry, "pos_z")};
+				glm::vec3 position = {ObjInfo.GetFloat(objEntry, "pos_x") / 4, ObjInfo.GetFloat(objEntry, "pos_y") / 4, ObjInfo.GetFloat(objEntry, "pos_z") / 4};
 				if(Options.mRootPath != "" && !ModelCache.contains(modelName)){
 					LoadModel(modelName);
 				}
@@ -64,6 +64,11 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
 	std::string name = (galaxy_path / std::string(".")).parent_path().filename();
 
     //Get scenario bcsv (its the only file in galaxy_path)
+
+	if(!std::filesystem::exists(galaxy_path / (name + "Scenario.arc"))){
+		std::cout << "Couldn't open scenario archive " << galaxy_path / (name + "Scenario.arc") << std::endl;
+	}
+
     GCResourceManager.LoadArchive((galaxy_path / (name + "Scenario.arc")).c_str(), &scenarioArchive);
 
     for(GCarcfile* file = scenarioArchive.files; file < scenarioArchive.files + scenarioArchive.filenum; file++){
@@ -90,6 +95,10 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
             for(size_t entry = 0; entry < ZoneData.GetEntryCount(); entry++){
 				std::filesystem::path zonePath = (galaxy_path.parent_path() / (ZoneData.GetString(entry, "ZoneName") + ".arc"));
 				
+				if(!std::filesystem::exists(zonePath)){
+					std::cout << "Couldn't open zone archive " << zonePath << std::endl;
+				}
+
 				GCarchive zoneArchive;
 				GCResourceManager.LoadArchive(zonePath.c_str(), &zoneArchive);
 				
@@ -119,6 +128,7 @@ void CGalaxyRenderer::RenderGalaxy(float dt){
 		for(auto& [layerName, layer] : zone){
 			for(auto& object : layer){
 				if(ModelCache.count(object.first) == 0) continue; //TODO: Render placeholder
+				ModelCache.at(object.first)->SetScale({0.25, 0.25, 0.25});
 				if(mZoneTransforms.contains(zoneName)){
 					ModelCache.at(object.first)->SetTranslation(object.second + mZoneTransforms.at(zoneName).first);
 				} else {
