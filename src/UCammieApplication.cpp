@@ -32,6 +32,7 @@ bool UCammieApplication::Setup() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
+	glfwWindowHint(GLFW_DEPTH_BITS, 24);
 
 	mWindow = glfwCreateWindow(1280, 720, "Cammie", nullptr, nullptr);
 	if (mWindow == nullptr) {

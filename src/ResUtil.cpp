@@ -1,4 +1,7 @@
 #include "ResUtil.hpp"
+#include "ini.h"
+#include <filesystem>
+#include <fstream>
 #include <imgui.h>
 #include <ImGuiFileDialog.h>
 #include <fmt/core.h>
@@ -118,16 +121,38 @@ bool SResUtility::SGCResourceManager::SaveArchiveCompressed(const char* path, GC
 	return true;
 }
 
+void SResUtility::SOptions::LoadOptions(){
+	auto optionsPath = std::filesystem::current_path() / "settings.ini";
+	if(std::filesystem::exists(optionsPath)){
+		ini_t* config = ini_load(optionsPath.c_str());
+		if(config == nullptr) return;
+
+		const char* path = ini_get(config, "settings", "root");
+		if(path != nullptr) mRootPath = std::filesystem::path(path);
+		ini_free(config);
+	}
+}
+
 void SResUtility::SOptions::RenderOptionMenu(){
 	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
 	if (ImGui::BeginPopupModal("Options", NULL, ImGuiWindowFlags_AlwaysAutoResize)){
-		ImGui::Text(fmt::format("Root Path: {0}", mRootPath == "" ? "(Not Set)" : mRootPath).data());
+		ImGui::Text(fmt::format("Root Path: {0}", mRootPath == "" ? "(Not Set)" : mRootPath.string()).data());
 		ImGui::SameLine();
 		if(ImGui::Button("Open")){
 			mSelectRootDialogOpen = true;
 		}
+
+		if(ImGui::Button("Save")){
+			std::ofstream settingsFile(std::filesystem::current_path() / "settings.ini");
+			settingsFile << fmt::format("[settings]\nroot={0}", mRootPath.string());
+			settingsFile.close();
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::SameLine();
+
 		if(ImGui::Button("Close")){
 			ImGui::CloseCurrentPopup();
 		}

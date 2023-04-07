@@ -9,12 +9,13 @@
 #include <filesystem>
 #include <string>
 #include <map>
+#include <ini.h>
 
 namespace SResUtility
 {
 	class SGCResourceManager
 	{
-		bool mInitialized = false;
+		bool mInitialized { false };
 		GCcontext mResManagerContext;
 		public:
 			bool LoadArchive(const char* path, GCarchive* archive);
@@ -28,9 +29,10 @@ namespace SResUtility
 		bool mSelectRootDialogOpen;
 		
 		public:
-			std::string mRootPath;
+			std::filesystem::path mRootPath;
 
 			void RenderOptionMenu();
+			void LoadOptions();
 	};
 }
 

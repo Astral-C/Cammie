@@ -72,6 +72,7 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 }
 
 UCammieContext::UCammieContext(){
+	Options.LoadOptions();
 	mGrid.Init();
 	mBillboardManager.Init(128, 2);
 	mBillboardManager.SetBillboardTexture(std::filesystem::current_path() / "res/camera.png", 0);
@@ -293,10 +294,11 @@ void UCammieContext::RenderMenuBar() {
 		ImGuiFileDialog::Instance()->OpenDialog("OpenFileDialog", "Choose Camera File", "Camera Animation (*.canm){.canm}", ".");
 	}
 	if (bIsGalaxyDialogOpen){
-		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, Options.mRootPath == "" ? "." : Options.mRootPath);
+		//TODO: make this ensure the selected root is a galaxy/2 root!
+		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, Options.mRootPath == "" ? "." : Options.mRootPath / "DATA" / "files" / "StageData");
 	}
 	if (bIsSaveDialogOpen) {
-		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Choose File", "J3D Models (*.bmd *.bdl){.bmd,.bdl}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
+		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Save Camera File", "Camera Animation (*.canm){.canm}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
 	}
 
 	if (ImGuiFileDialog::Instance()->Display("OpenFileDialog")) {
@@ -307,7 +309,7 @@ void UCammieContext::RenderMenuBar() {
 				LoadFromPath(FilePath);
 			}
 			catch (std::exception e) {
-				std::cout << "Failed to load galaxy " << FilePath << "! Exception: " << e.what() << "\n";
+				std::cout << "Failed to load camera file " << FilePath << "! Exception: " << e.what() << "\n";
 			}
 
 			bIsFileDialogOpen = false;
@@ -339,6 +341,7 @@ void UCammieContext::RenderMenuBar() {
 			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
 
 			try {
+				//TODO: Write camera file
 			}
 			catch (std::exception e) {
 				std::cout << "Failed to save model to " << FilePath << "! Exception: " << e.what() << "\n";

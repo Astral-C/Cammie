@@ -2,6 +2,10 @@
 
 static std::map<std::string, std::shared_ptr<J3DModelInstance>> ModelCache;
 
+CGalaxyRenderer::~CGalaxyRenderer(){
+	ModelCache.clear();
+}
+
 void CGalaxyRenderer::LoadModel(std::string modelName){
 	std::filesystem::path modelPath = std::filesystem::path(Options.mRootPath) / "DATA" / "files" / "ObjectData" / (modelName + ".arc");
 	
@@ -59,6 +63,10 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 }
 
 void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
+
+	mZones.clear();
+	mZoneTransforms.clear();
+
 	GCarchive scenarioArchive;
 
 	std::string name = (galaxy_path / std::string(".")).parent_path().filename();
