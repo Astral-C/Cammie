@@ -10,4 +10,5 @@ Open a camn file from an _extracted_ archive, currently does not support opening
 
 ### Example usage
 
-[cammie_example](example.mp4)
+https://user-images.githubusercontent.com/10427486/230637606-babe17f6-da43-48d9-865f-7dae3adc453a.mp4
+
