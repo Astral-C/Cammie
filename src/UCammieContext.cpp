@@ -15,6 +15,7 @@
 #include <J3D/J3DModelInstance.hpp>
 
 #include <ImGuiFileDialog.h>
+#include <bits/fs_path.h>
 #include <glad/glad.h>
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -82,9 +83,9 @@ UCammieContext::UCammieContext(){
 	mBillboardManager.mBillboards.push_back(CPointSprite());
 
 	mBillboardManager.mBillboards[0].Texture = 0;
-	mBillboardManager.mBillboards[0].SpriteSize = 204800;
+	mBillboardManager.mBillboards[0].SpriteSize = 20480;
 	mBillboardManager.mBillboards[1].Texture = 1;
-	mBillboardManager.mBillboards[1].SpriteSize = 204800;
+	mBillboardManager.mBillboards[1].SpriteSize = 20480;
 
 	GCResourceManager.Init();
 
@@ -137,10 +138,11 @@ void UCammieContext::Render(float deltaTime) {
 
 
 		mDockNodeBottomID = ImGui::DockBuilderSplitNode(mMainDockSpaceID, ImGuiDir_Down, 0.257f, nullptr, &mMainDockSpaceID);
+		mDockNodeRightID = ImGui::DockBuilderSplitNode(mMainDockSpaceID, ImGuiDir_Left, 0.2f, nullptr, &mMainDockSpaceID);
 		mDockNodeBottomRightID = ImGui::DockBuilderSplitNode(mDockNodeBottomID, ImGuiDir_Right, 0.2f, nullptr, &mDockNodeBottomID);
 
-
 		ImGui::DockBuilderDockWindow("mainWindow", mDockNodeBottomID);
+		ImGui::DockBuilderDockWindow("zoneWindow", mDockNodeRightID);
 		ImGui::DockBuilderDockWindow("detailWindow", mDockNodeBottomRightID);
 
 		ImGui::DockBuilderFinish(mMainDockSpaceID);
@@ -187,7 +189,7 @@ void UCammieContext::Render(float deltaTime) {
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 
 	ImGui::Begin("detailWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-		ImGui::Text("Keyframe");
+		ImGui::Text("Selected Keyframe");
 		ImGui::Separator();
 		if(selectedKeyframe != -1 && selectedTrack != nullptr && selectedTrack->mFrames.count(selectedKeyframe) != 0){
 			ImGui::InputFloat("Value", &selectedTrack->mFrames.at(selectedKeyframe).value);
@@ -207,6 +209,13 @@ void UCammieContext::Render(float deltaTime) {
 		}
 	ImGui::End();
 
+	ImGui::SetNextWindowClass(&mainWindowOverride);
+
+	ImGui::Begin("zoneWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
+		ImGui::Text("Zones");
+		ImGui::Separator();
+		mGalaxyRenderer.RenderUI();
+	ImGui::End();
 
 	glm::mat4 projection, view;
 	projection = mCamera.GetProjectionMatrix();
@@ -342,6 +351,7 @@ void UCammieContext::RenderMenuBar() {
 
 			try {
 				//TODO: Write camera file
+				SaveAnimation(FilePath);
 			}
 			catch (std::exception e) {
 				std::cout << "Failed to save model to " << FilePath << "! Exception: " << e.what() << "\n";
@@ -389,6 +399,12 @@ void UCammieContext::SetLights() {
 		lights[i].Color = glm::vec4(1, 1, 1, 1);
 
 	J3DUniformBufferObject::SetLights(lights);
+}
+
+void UCammieContext::SaveAnimation(std::filesystem::path savePath){
+	//bStream::CFileStream camn(savePath.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
+
+
 }
 
 void UCammieContext::LoadFromPath(std::filesystem::path filePath) {

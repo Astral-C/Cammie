@@ -15,13 +15,14 @@
 #include "ResUtil.hpp"
 
 class CGalaxyRenderer {
-	std::map<std::string, std::map<std::string, std::vector<std::pair<std::string, glm::vec3>>>> mZones;
+	std::map<std::string, std::map<std::string, std::pair<std::vector<std::pair<std::string, glm::vec3>>, bool>>> mZones;
 	std::map<std::string, std::pair<glm::vec3, glm::vec3>> mZoneTransforms;
 
 	std::vector<std::pair<std::string, glm::vec3>> LoadZoneLayer(GCarchive* zoneArchive, GCarcfile* layerDir, bool isMainGalaxyZone);
 	void LoadModel(std::string modelName);
 
 public:
+	void RenderUI();
 	void RenderGalaxy(float dt);
 	void LoadGalaxy(std::filesystem::path galaxy_path);
 

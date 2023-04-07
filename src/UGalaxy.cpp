@@ -1,4 +1,5 @@
 #include "UGalaxy.hpp"
+#include "imgui.h"
 
 static std::map<std::string, std::shared_ptr<J3DModelInstance>> ModelCache;
 
@@ -110,13 +111,13 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
 				GCarchive zoneArchive;
 				GCResourceManager.LoadArchive(zonePath.c_str(), &zoneArchive);
 				
-				std::map<std::string, std::vector<std::pair<std::string, glm::vec3>>> zone;
+				std::map<std::string, std::pair<std::vector<std::pair<std::string, glm::vec3>>, bool>> zone;
 
 				for (GCarcfile* file = zoneArchive.files; file < zoneArchive.files + zoneArchive.filenum; file++){
 					if(file->parent != nullptr && strcmp(file->parent->name, "placement") == 0 && (file->attr & 0x02) && strcmp(file->name, ".") != 0 && strcmp(file->name, "..") != 0){
 						std::cout << "Loading zone " << ZoneData.GetString(entry, "ZoneName") << " layer " << file->name << std::endl;
 						auto layer = LoadZoneLayer(&zoneArchive, file, (ZoneData.GetString(entry, "ZoneName") == name));
-						zone.insert({file->name, layer});
+						zone.insert({file->name, {layer, true}});
 					}
 				}
 				
@@ -130,14 +131,26 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
 	gcFreeArchive(&scenarioArchive);
 }
 
+void CGalaxyRenderer::RenderUI() {
+	for(auto& [zoneName, zone] : mZones){
+		if (ImGui::TreeNode(zoneName.c_str())){
+			for(auto& [layerName, layer] : zone){
+				ImGui::Checkbox(layerName.c_str(), &layer.second);
+			}
+
+			ImGui::TreePop();
+		}
+	}
+}
 
 void CGalaxyRenderer::RenderGalaxy(float dt){
 	for(auto& [zoneName, zone] : mZones){
 		for(auto& [layerName, layer] : zone){
-			for(auto& object : layer){
+			if(!layer.second) continue; //layer not set to visible
+			for(auto& object : layer.first){
 				if(ModelCache.count(object.first) == 0) continue; //TODO: Render placeholder
 				ModelCache.at(object.first)->SetScale({0.25, 0.25, 0.25});
-				if(mZoneTransforms.contains(zoneName)){
+				if(mZoneTransforms.count(zoneName) != 0){
 					ModelCache.at(object.first)->SetTranslation(object.second + mZoneTransforms.at(zoneName).first);
 				} else {
 					ModelCache.at(object.first)->SetTranslation(object.second);

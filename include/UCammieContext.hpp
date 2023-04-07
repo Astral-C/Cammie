@@ -44,7 +44,7 @@ class UCammieContext {
 	//std::vector<std::unique_ptr<GalaxyZone>();
 
 	uint32_t mMainDockSpaceID;
-	uint32_t mDockNodeBottomID, mDockNodeBottomRightID;
+	uint32_t mDockNodeBottomID, mDockNodeRightID, mDockNodeBottomRightID;
 	
 	bool bIsDockingSetUp { false };
 	bool bIsFileDialogOpen { false };
@@ -69,7 +69,7 @@ class UCammieContext {
 	void SetLights();
 	void LoadFromPath(std::filesystem::path filePath);
 
-	void SaveModel(std::filesystem::path filePath);
+	void SaveAnimation(std::filesystem::path savePath);
 
 public:
 	UCammieContext();
