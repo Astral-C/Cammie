@@ -45,6 +45,10 @@ class UCammieContext {
 
 	uint32_t mMainDockSpaceID;
 	uint32_t mDockNodeBottomID, mDockNodeRightID, mDockNodeBottomRightID;
+
+	uint32_t mCamUnkData[4];
+	uint32_t mTrackSize { 0x60 };
+	std::string mFrameType { "CKAN" };
 	
 	bool bIsDockingSetUp { false };
 	bool bIsFileDialogOpen { false };
@@ -58,6 +62,7 @@ class UCammieContext {
 	bool mUpdateCameraPosition { false };
 	bool mViewCamera { false };
 	bool mOptionsOpen { false };
+	bool mShowZones { false };
 
 	void RenderMainWindow(float deltaTime);
 	void RenderPanels(float deltaTime);

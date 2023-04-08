@@ -21,13 +21,14 @@ class CTrackCommon
 {
 
 public:
-	bool mSymmetricSlope;
+	int32_t mSymmetricSlope;
     ETrackType mType;
     std::vector<int32_t> mKeys;
     std::map<uint32_t, CKeyframeCommon> mFrames;
 
     void LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffset, ETrackType type);
-    void SaveTrack(bStream::CStream* stream,  bStream::CMemoryStream& framesOut, uint32_t keyframeDataOffset, ETrackType type);
+    void WriteTrack(bStream::CStream* stream, std::vector<float>& frameDataBuffer, ETrackType type);
+
 	void DeleteKeyframe(uint32_t keyframe);
 
     CTrackCommon(){}

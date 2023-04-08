@@ -21,6 +21,7 @@
 #include <imgui_internal.h>
 #include <bstream.h>
 #include <optional>
+#include <sys/types.h>
 #include "fmt/core.h"
 #include "ResUtil.hpp"
 
@@ -161,6 +162,7 @@ void UCammieContext::Render(float deltaTime) {
 		ImGui::SameLine();
 		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; mCamera.ResetView(); }
 		if(mPlaying){ ImGui::SameLine(); if(ImGui::Button("Stop")) mPlaying = false; }
+		if(!mShowZones){ ImGui::SameLine(); if(ImGui::Button("Zones")) mShowZones = true; }
 		ImGui::Separator();
 
 		//This segment of code is insanely messy
@@ -209,13 +211,17 @@ void UCammieContext::Render(float deltaTime) {
 		}
 	ImGui::End();
 
-	ImGui::SetNextWindowClass(&mainWindowOverride);
+	if(mShowZones){
+		ImGui::SetNextWindowClass(&mainWindowOverride);
 
-	ImGui::Begin("zoneWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-		ImGui::Text("Zones");
-		ImGui::Separator();
-		mGalaxyRenderer.RenderUI();
-	ImGui::End();
+		ImGui::Begin("zoneWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
+			ImGui::Text("Zones");
+			ImGui::SameLine(ImGui::GetWindowWidth()-40);
+			if(ImGui::Button("Hide")) mShowZones = false;
+			ImGui::Separator();
+			mGalaxyRenderer.RenderUI();
+		ImGui::End();
+	}
 
 	glm::mat4 projection, view;
 	projection = mCamera.GetProjectionMatrix();
@@ -402,9 +408,45 @@ void UCammieContext::SetLights() {
 }
 
 void UCammieContext::SaveAnimation(std::filesystem::path savePath){
-	//bStream::CFileStream camn(savePath.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
+	bStream::CFileStream camn(savePath.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
+	// Write header
 
+	camn.writeString("ANDO");
+	camn.writeString(mFrameType);
+
+	camn.writeUInt32(mCamUnkData[0]);
+	camn.writeUInt32(mCamUnkData[1]);
+	camn.writeUInt32(mCamUnkData[2]);
+	camn.writeUInt32(mCamUnkData[3]);
+
+	camn.writeInt32(mEndFrame);
+	camn.writeUInt32(mFrameType == "CANM" ? 64 : 96);
+	std::cout << "Should be 0x20!" << std::hex << camn.tell() << std::endl;
+
+	ETrackType type = (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN);
+
+	std::vector<float> FrameData;
+
+	XPositionTrack.WriteTrack(&camn, FrameData, type);
+	YPositionTrack.WriteTrack(&camn, FrameData, type);
+	ZPositionTrack.WriteTrack(&camn, FrameData, type);
+
+	XTargetTrack.WriteTrack(&camn, FrameData, type);
+	YTargetTrack.WriteTrack(&camn, FrameData, type);
+	ZTargetTrack.WriteTrack(&camn, FrameData, type);
+
+	TwistTrack.WriteTrack(&camn, FrameData, type);
+	FovYTrack.WriteTrack(&camn, FrameData, type);
+
+	camn.writeUInt32(FrameData.size() + 2);
+	for(auto& flt : FrameData){
+		camn.writeFloat(flt);
+    }
+
+	camn.writeUInt32(0x3DCCCCCD);
+	camn.writeUInt32(0x4E6E6B28);
+	camn.writeUInt32(0xFFFFFFFF);
 }
 
 void UCammieContext::LoadFromPath(std::filesystem::path filePath) {
@@ -440,22 +482,26 @@ void UCammieContext::LoadFromPath(std::filesystem::path filePath) {
 
 	camn.readString(4);
 
-	std::string type = camn.readString(4);
+	mFrameType = camn.readString(4);
+
+	mCamUnkData[0] = camn.readUInt32();
+	mCamUnkData[1] = camn.readUInt32();
+	mCamUnkData[2] = camn.readUInt32();
+	mCamUnkData[3] = camn.readUInt32();
 
 	camn.seek(0x18);
 	mEndFrame = camn.readInt32();
-	uint32_t track_size = camn.readUInt32();
+	mTrackSize = camn.readUInt32();
 
-
-	XPositionTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	YPositionTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	ZPositionTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	XPositionTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	YPositionTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	ZPositionTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
 	
-	XTargetTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	YTargetTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	ZTargetTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	XTargetTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	YTargetTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	ZTargetTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
 
-	TwistTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	FovYTrack.LoadTrack(&camn, 0x20 + track_size, (type == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	TwistTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	FovYTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
     
 }

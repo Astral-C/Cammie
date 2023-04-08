@@ -40,8 +40,8 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 			for(size_t stageObjEntry = 0; stageObjEntry < StageObjInfo.GetEntryCount(); stageObjEntry++){
 				std::string zoneName = StageObjInfo.GetString(stageObjEntry, "name");
 				std::cout << "Loading StageObjInfo Entry " << zoneName << std::endl;
-				glm::vec3 position = {StageObjInfo.GetFloat(stageObjEntry, "pos_x") / 4, StageObjInfo.GetFloat(stageObjEntry, "pos_y") / 4, StageObjInfo.GetFloat(stageObjEntry, "pos_z") / 4};
-				glm::vec3 rotation = {StageObjInfo.GetFloat(stageObjEntry, "dir_x") / 4, StageObjInfo.GetFloat(stageObjEntry, "dir_y") / 4, StageObjInfo.GetFloat(stageObjEntry, "dir_z") / 4};
+				glm::vec3 position = {StageObjInfo.GetFloat(stageObjEntry, "pos_x"), StageObjInfo.GetFloat(stageObjEntry, "pos_y"), StageObjInfo.GetFloat(stageObjEntry, "pos_z")};
+				glm::vec3 rotation = {StageObjInfo.GetFloat(stageObjEntry, "dir_x"), StageObjInfo.GetFloat(stageObjEntry, "dir_y"), StageObjInfo.GetFloat(stageObjEntry, "dir_z")};
 				mZoneTransforms.insert({zoneName, {position, rotation}});
 			}
 		}
@@ -51,7 +51,7 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 			ObjInfo.Load(&ObjInfoStream);
 			for(size_t objEntry = 0; objEntry < ObjInfo.GetEntryCount(); objEntry++){
 				std::string modelName = ObjInfo.GetString(objEntry, "name");
-				glm::vec3 position = {ObjInfo.GetFloat(objEntry, "pos_x") / 4, ObjInfo.GetFloat(objEntry, "pos_y") / 4, ObjInfo.GetFloat(objEntry, "pos_z") / 4};
+				glm::vec3 position = {ObjInfo.GetFloat(objEntry, "pos_x"), ObjInfo.GetFloat(objEntry, "pos_y"), ObjInfo.GetFloat(objEntry, "pos_z")};
 				if(Options.mRootPath != "" && !ModelCache.contains(modelName)){
 					LoadModel(modelName);
 				}
@@ -149,7 +149,6 @@ void CGalaxyRenderer::RenderGalaxy(float dt){
 			if(!layer.second) continue; //layer not set to visible
 			for(auto& object : layer.first){
 				if(ModelCache.count(object.first) == 0) continue; //TODO: Render placeholder
-				ModelCache.at(object.first)->SetScale({0.25, 0.25, 0.25});
 				if(mZoneTransforms.count(zoneName) != 0){
 					ModelCache.at(object.first)->SetTranslation(object.second + mZoneTransforms.at(zoneName).first);
 				} else {
