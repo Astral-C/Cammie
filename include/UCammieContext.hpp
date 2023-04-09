@@ -11,6 +11,8 @@
 #include <UPointSpriteManager.hpp>
 #include <UGalaxy.hpp>
 
+#include <ImGuiFileDialog.h>
+
 namespace bStream { class CStream; }
 class J3DModelData;
 class J3DMaterial;

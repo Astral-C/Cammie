@@ -14,7 +14,6 @@
 #include <J3D/J3DLight.hpp>
 #include <J3D/J3DModelInstance.hpp>
 
-#include <ImGuiFileDialog.h>
 #include <bits/fs_path.h>
 #include <glad/glad.h>
 #include <imgui.h>
@@ -84,9 +83,9 @@ UCammieContext::UCammieContext(){
 	mBillboardManager.mBillboards.push_back(CPointSprite());
 
 	mBillboardManager.mBillboards[0].Texture = 0;
-	mBillboardManager.mBillboards[0].SpriteSize = 20480;
+	mBillboardManager.mBillboards[0].SpriteSize = 204800;
 	mBillboardManager.mBillboards[1].Texture = 1;
-	mBillboardManager.mBillboards[1].SpriteSize = 20480;
+	mBillboardManager.mBillboards[1].SpriteSize = 204800;
 
 	GCResourceManager.Init();
 
@@ -163,6 +162,8 @@ void UCammieContext::Render(float deltaTime) {
 		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; mCamera.ResetView(); }
 		if(mPlaying){ ImGui::SameLine(); if(ImGui::Button("Stop")) mPlaying = false; }
 		if(!mShowZones){ ImGui::SameLine(); if(ImGui::Button("Zones")) mShowZones = true; }
+		ImGui::SameLine(ImGui::GetWindowWidth() - 50);
+		ImGui::InputInt("End Frame", &mEndFrame);
 		ImGui::Separator();
 
 		//This segment of code is insanely messy
@@ -272,6 +273,14 @@ void UCammieContext::RenderMainWindow(float deltaTime) {
 
 }
 
+static bool isGalaxy2 = false;
+
+void GalaxySelectPane(const char *vFilter, IGFDUserDatas vUserDatas, bool *vCantContinue) // if vCantContinue is false, the user cant validate the dialog
+{
+    ImGui::Checkbox("Is Galaxy 2", &isGalaxy2);
+}
+
+
 void UCammieContext::RenderMenuBar() {
 	mOptionsOpen = false;
 	ImGui::BeginMainMenuBar();
@@ -310,7 +319,7 @@ void UCammieContext::RenderMenuBar() {
 	}
 	if (bIsGalaxyDialogOpen){
 		//TODO: make this ensure the selected root is a galaxy/2 root!
-		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, Options.mRootPath == "" ? "." : Options.mRootPath / "DATA" / "files" / "StageData");
+		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, Options.mRootPath == "" ? "." : Options.mRootPath / "DATA" / "files" / "StageData" / ".", "", std::bind(&GalaxySelectPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 	}
 	if (bIsSaveDialogOpen) {
 		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Save Camera File", "Camera Animation (*.canm){.canm}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
@@ -338,7 +347,7 @@ void UCammieContext::RenderMenuBar() {
 			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
 
 			try {
-				mGalaxyRenderer.LoadGalaxy(FilePath);
+				mGalaxyRenderer.LoadGalaxy(FilePath, isGalaxy2);
 			}
 			catch (std::exception e) {
 				std::cout << "Failed to load galaxy " << FilePath << "! Exception: " << e.what() << "\n";

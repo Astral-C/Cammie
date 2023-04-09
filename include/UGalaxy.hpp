@@ -24,7 +24,7 @@ class CGalaxyRenderer {
 public:
 	void RenderUI();
 	void RenderGalaxy(float dt);
-	void LoadGalaxy(std::filesystem::path galaxy_path);
+	void LoadGalaxy(std::filesystem::path galaxy_path, bool isGalaxy2);
 
 	~CGalaxyRenderer();
 };

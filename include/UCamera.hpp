@@ -25,7 +25,6 @@ class USceneCamera {
 
 	float mNearPlane;
 	float mFarPlane;
-	float mAspectRatio;
 
 	float mMoveSpeed;
 	float mMouseSensitivity;
@@ -33,6 +32,7 @@ class USceneCamera {
 	void Rotate(float deltaTime, glm::vec2 mouseDelta);
 
 public:
+	float mAspectRatio;
 	float mFovy;
 
 	USceneCamera();

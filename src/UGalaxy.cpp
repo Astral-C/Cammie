@@ -30,7 +30,7 @@ void CGalaxyRenderer::LoadModel(std::string modelName){
 std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GCarchive* zoneArchive, GCarcfile* layerDir, bool isMainGalaxyZone){
 	std::vector<std::pair<std::string, glm::vec3>> objects;
 	for (GCarcfile* layer_file = &zoneArchive->files[zoneArchive->dirs[layerDir->size].fileoff]; layer_file < &zoneArchive->files[zoneArchive->dirs[layerDir->size].fileoff] + zoneArchive->dirs[layerDir->size].filenum; layer_file++){
-		if(strcmp(layer_file->name, "stageobjinfo") == 0 && isMainGalaxyZone){
+		if((strcmp(layer_file->name, "stageobjinfo") == 0 || strcmp(layer_file->name, "StageObjInfo") == 0) && isMainGalaxyZone){
 			// TODO: Load this for this zone
 			//std::cout << "This should only happen once!" << std::endl;
 			
@@ -45,7 +45,7 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 				mZoneTransforms.insert({zoneName, {position, rotation}});
 			}
 		}
-		if(strcmp(layer_file->name, "objinfo") == 0 && layer_file->data != nullptr){
+		if((strcmp(layer_file->name, "objinfo") == 0 || strcmp(layer_file->name, "ObjInfo") == 0) && layer_file->data != nullptr){
 			SBcsvIO ObjInfo;
 			bStream::CMemoryStream ObjInfoStream((uint8_t*)layer_file->data, (size_t)layer_file->size, bStream::Endianess::Big, bStream::OpenMode::In);
 			ObjInfo.Load(&ObjInfoStream);
@@ -63,7 +63,7 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 	return objects;
 }
 
-void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
+void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalaxy2){
 
 	mZones.clear();
 	mZoneTransforms.clear();
@@ -76,6 +76,7 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
 
 	if(!std::filesystem::exists(galaxy_path / (name + "Scenario.arc"))){
 		std::cout << "Couldn't open scenario archive " << galaxy_path / (name + "Scenario.arc") << std::endl;
+		return;
 	}
 
     GCResourceManager.LoadArchive((galaxy_path / (name + "Scenario.arc")).c_str(), &scenarioArchive);
@@ -97,16 +98,24 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
 
         // Load all zones and all zone layers
 
-        if(strcmp(file->name, "zonelist.bcsv") == 0){
+        if(strcmp(file->name, "zonelist.bcsv") == 0 || strcmp(file->name, "ZoneList.bcsv") == 0){
             SBcsvIO ZoneData;
             bStream::CMemoryStream ZoneDataStream((uint8_t*)file->data, (size_t)file->size, bStream::Endianess::Big, bStream::OpenMode::In);
             ZoneData.Load(&ZoneDataStream);
             for(size_t entry = 0; entry < ZoneData.GetEntryCount(); entry++){
 				std::filesystem::path zonePath = (galaxy_path.parent_path() / (ZoneData.GetString(entry, "ZoneName") + ".arc"));
+
+				if(isGalaxy2){
+					zonePath = (galaxy_path.parent_path() / ZoneData.GetString(entry, "ZoneName") / (ZoneData.GetString(entry, "ZoneName") + "Map.arc"));
+				}
 				
 				if(!std::filesystem::exists(zonePath)){
 					std::cout << "Couldn't open zone archive " << zonePath << std::endl;
-				}
+					gcFreeArchive(&scenarioArchive);
+					return;
+				} else {
+					std::cout << "Loading zone archive " << zonePath << std::endl;
+                }
 
 				GCarchive zoneArchive;
 				GCResourceManager.LoadArchive(zonePath.c_str(), &zoneArchive);
@@ -114,7 +123,7 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path){
 				std::map<std::string, std::pair<std::vector<std::pair<std::string, glm::vec3>>, bool>> zone;
 
 				for (GCarcfile* file = zoneArchive.files; file < zoneArchive.files + zoneArchive.filenum; file++){
-					if(file->parent != nullptr && strcmp(file->parent->name, "placement") == 0 && (file->attr & 0x02) && strcmp(file->name, ".") != 0 && strcmp(file->name, "..") != 0){
+					if(file->parent != nullptr && (strcmp(file->parent->name, "placement") == 0 || strcmp(file->parent->name, "Placement") == 0) && (file->attr & 0x02) && strcmp(file->name, ".") != 0 && strcmp(file->name, "..") != 0){
 						std::cout << "Loading zone " << ZoneData.GetString(entry, "ZoneName") << " layer " << file->name << std::endl;
 						auto layer = LoadZoneLayer(&zoneArchive, file, (ZoneData.GetString(entry, "ZoneName") == name));
 						zone.insert({file->name, {layer, true}});
@@ -150,6 +159,7 @@ void CGalaxyRenderer::RenderGalaxy(float dt){
 			for(auto& object : layer.first){
 				if(ModelCache.count(object.first) == 0) continue; //TODO: Render placeholder
 				if(mZoneTransforms.count(zoneName) != 0){
+					ModelCache.at(object.first)->SetRotation(mZoneTransforms.at(zoneName).second);
 					ModelCache.at(object.first)->SetTranslation(object.second + mZoneTransforms.at(zoneName).first);
 				} else {
 					ModelCache.at(object.first)->SetTranslation(object.second);
