@@ -1,7 +1,37 @@
 #include "UGalaxy.hpp"
+#include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
 
-static std::map<std::string, std::shared_ptr<J3DModelInstance>> ModelCache;
+static std::map<std::string, std::shared_ptr<J3DModelData>> ModelCache;
+
+glm::mat4 computeTransform(glm::vec3 scale, glm::vec3 dir, glm::vec3 pos){
+	float out[16];
+	float sinX = sin(glm::radians(dir.x)), cosX = cos(glm::radians(dir.x));
+	float sinY = sin(glm::radians(dir.y)), cosY = cos(glm::radians(dir.y));
+	float sinZ = sin(glm::radians(dir.z)), cosZ = cos(glm::radians(dir.z));
+
+	out[0] = scale.x * (cosY * cosZ);
+	out[1] = scale.x * (sinZ * cosY);
+	out[2] = scale.x * (-sinY);
+	out[3] = 0.0f;
+
+	out[4] = scale.y * (sinX * cosZ * sinY - cosX * sinZ);
+	out[5] = scale.y * (sinX * sinZ * sinY + cosX * cosZ);
+	out[6] = scale.y * (sinX * cosY);
+	out[7] = 0.0f;
+
+	out[8] = scale.z * (cosX * cosZ * sinY + sinX * sinZ);
+	out[9] = scale.z * (cosX * sinZ * sinY - sinX * cosZ);
+	out[10] = scale.z * (cosY * cosX);
+	out[11] = 0.0f;
+
+	out[12] = pos.x;
+	out[13] = pos.y;
+	out[14] = pos.z;
+	out[15] = 1.0f;
+
+	return glm::make_mat4(out);
+}
 
 CGalaxyRenderer::~CGalaxyRenderer(){
 	ModelCache.clear();
@@ -20,15 +50,14 @@ void CGalaxyRenderer::LoadModel(std::string modelName){
 				
 				auto data = std::make_shared<J3DModelData>();
 				data = Loader.Load(&modelStream, NULL);
-				std::shared_ptr<J3DModelInstance> instance = data->GetInstance();
-				ModelCache.insert({modelName, instance});
+				ModelCache.insert({modelName, data});
 			}
 		}
 	}
 }
 
-std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GCarchive* zoneArchive, GCarcfile* layerDir, bool isMainGalaxyZone){
-	std::vector<std::pair<std::string, glm::vec3>> objects;
+std::vector<std::pair<std::string, glm::mat4>> CGalaxyRenderer::LoadZoneLayer(GCarchive* zoneArchive, GCarcfile* layerDir, bool isMainGalaxyZone){
+	std::vector<std::pair<std::string, glm::mat4>> objects;
 	for (GCarcfile* layer_file = &zoneArchive->files[zoneArchive->dirs[layerDir->size].fileoff]; layer_file < &zoneArchive->files[zoneArchive->dirs[layerDir->size].fileoff] + zoneArchive->dirs[layerDir->size].filenum; layer_file++){
 		if((strcmp(layer_file->name, "stageobjinfo") == 0 || strcmp(layer_file->name, "StageObjInfo") == 0) && isMainGalaxyZone){
 			// TODO: Load this for this zone
@@ -42,7 +71,7 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 				std::cout << "Loading StageObjInfo Entry " << zoneName << std::endl;
 				glm::vec3 position = {StageObjInfo.GetFloat(stageObjEntry, "pos_x"), StageObjInfo.GetFloat(stageObjEntry, "pos_y"), StageObjInfo.GetFloat(stageObjEntry, "pos_z")};
 				glm::vec3 rotation = {StageObjInfo.GetFloat(stageObjEntry, "dir_x"), StageObjInfo.GetFloat(stageObjEntry, "dir_y"), StageObjInfo.GetFloat(stageObjEntry, "dir_z")};
-				mZoneTransforms.insert({zoneName, {position, rotation}});
+				mZoneTransforms.insert({zoneName, computeTransform({1,1,1}, rotation, position)});
 			}
 		}
 		if((strcmp(layer_file->name, "objinfo") == 0 || strcmp(layer_file->name, "ObjInfo") == 0) && layer_file->data != nullptr){
@@ -52,10 +81,11 @@ std::vector<std::pair<std::string, glm::vec3>> CGalaxyRenderer::LoadZoneLayer(GC
 			for(size_t objEntry = 0; objEntry < ObjInfo.GetEntryCount(); objEntry++){
 				std::string modelName = ObjInfo.GetString(objEntry, "name");
 				glm::vec3 position = {ObjInfo.GetFloat(objEntry, "pos_x"), ObjInfo.GetFloat(objEntry, "pos_y"), ObjInfo.GetFloat(objEntry, "pos_z")};
+				glm::vec3 rotation = {ObjInfo.GetFloat(objEntry, "dir_x"), ObjInfo.GetFloat(objEntry, "dir_y"), ObjInfo.GetFloat(objEntry, "dir_z")};
 				if(Options.mRootPath != "" && !ModelCache.contains(modelName)){
 					LoadModel(modelName);
 				}
-				objects.push_back({modelName, position});
+				objects.push_back({modelName, computeTransform({1,1,1}, rotation, position)});
 
 			}
 		}
@@ -120,7 +150,7 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalax
 				GCarchive zoneArchive;
 				GCResourceManager.LoadArchive(zonePath.c_str(), &zoneArchive);
 				
-				std::map<std::string, std::pair<std::vector<std::pair<std::string, glm::vec3>>, bool>> zone;
+				std::map<std::string, std::pair<std::vector<std::pair<std::string, glm::mat4>>, bool>> zone;
 
 				for (GCarcfile* file = zoneArchive.files; file < zoneArchive.files + zoneArchive.filenum; file++){
 					if(file->parent != nullptr && (strcmp(file->parent->name, "placement") == 0 || strcmp(file->parent->name, "Placement") == 0) && (file->attr & 0x02) && strcmp(file->name, ".") != 0 && strcmp(file->name, "..") != 0){
@@ -136,6 +166,16 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalax
             }
         }
     }
+
+	for(auto& [zoneName, zone] : mZones){
+		for(auto& [layerName, layer] : zone){
+			for(auto& object : layer.first){
+				if(mZoneTransforms.count(zoneName) != 0){
+					object.second = mZoneTransforms.at(zoneName) * object.second;
+				}
+			}
+		}
+	}
 
 	gcFreeArchive(&scenarioArchive);
 }
@@ -158,12 +198,10 @@ void CGalaxyRenderer::RenderGalaxy(float dt){
 			if(!layer.second) continue; //layer not set to visible
 			for(auto& object : layer.first){
 				if(ModelCache.count(object.first) == 0) continue; //TODO: Render placeholder
-				if(mZoneTransforms.count(zoneName) != 0){
-					ModelCache.at(object.first)->SetRotation(mZoneTransforms.at(zoneName).second);
-					ModelCache.at(object.first)->SetTranslation(object.second + mZoneTransforms.at(zoneName).first);
-				} else {
-					ModelCache.at(object.first)->SetTranslation(object.second);
-				}
+
+				J3DUniformBufferObject::SetEnvelopeMatrices(ModelCache.at(object.first)->GetRestPose().data(), ModelCache.at(object.first)->GetRestPose().size());
+				J3DUniformBufferObject::SetModelMatrix(&object.second);
+
 				ModelCache.at(object.first)->Render(dt);
 			}
 		}
