@@ -82,10 +82,11 @@ std::vector<std::pair<std::string, glm::mat4>> CGalaxyRenderer::LoadZoneLayer(GC
 				std::string modelName = ObjInfo.GetString(objEntry, "name");
 				glm::vec3 position = {ObjInfo.GetFloat(objEntry, "pos_x"), ObjInfo.GetFloat(objEntry, "pos_y"), ObjInfo.GetFloat(objEntry, "pos_z")};
 				glm::vec3 rotation = {ObjInfo.GetFloat(objEntry, "dir_x"), ObjInfo.GetFloat(objEntry, "dir_y"), ObjInfo.GetFloat(objEntry, "dir_z")};
+				glm::vec3 scale = {ObjInfo.GetFloat(objEntry, "scale_x"), ObjInfo.GetFloat(objEntry, "scale_y"), ObjInfo.GetFloat(objEntry, "scale_z")};
 				if(Options.mRootPath != "" && !ModelCache.contains(modelName)){
 					LoadModel(modelName);
 				}
-				objects.push_back({modelName, computeTransform({1,1,1}, rotation, position)});
+				objects.push_back({modelName, computeTransform(scale, rotation, position)});
 
 			}
 		}
@@ -97,6 +98,7 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalax
 
 	mZones.clear();
 	mZoneTransforms.clear();
+	ModelCache.clear();
 
 	GCarchive scenarioArchive;
 

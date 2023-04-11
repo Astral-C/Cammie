@@ -65,6 +65,13 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
 
 }
 
+void CTrackCommon::AddKeyframe(uint32_t keyframe, float value, float slopeIn, float slopeOut) {
+	if(!std::count(mKeys.begin(), mKeys.end(), keyframe)){
+		mKeys.insert(std::upper_bound(mKeys.begin(), mKeys.end(), keyframe), keyframe);
+		mFrames.insert({(uint32_t)keyframe, {(float)keyframe, value, slopeIn, slopeOut}});
+	}
+}
+
 void CTrackCommon::DeleteKeyframe(uint32_t keyframe) {
 	if(!std::count(mKeys.begin(), mKeys.end(), keyframe)) return; // keyframe doesnt exist
 	mKeys.erase(std::remove(mKeys.begin(), mKeys.end(), keyframe), mKeys.end());

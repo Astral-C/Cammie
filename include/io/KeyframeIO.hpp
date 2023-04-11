@@ -29,6 +29,7 @@ public:
     void LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffset, ETrackType type);
     void WriteTrack(bStream::CStream* stream, std::vector<float>& frameDataBuffer, ETrackType type);
 
+	void AddKeyframe(uint32_t keyframe, float value, float slopeIn=0.0f, float slopeOut=0.0f);
 	void DeleteKeyframe(uint32_t keyframe);
 
     CTrackCommon(){}

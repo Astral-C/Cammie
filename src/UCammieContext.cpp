@@ -4,7 +4,7 @@
 #include "io/KeyframeIO.hpp"
 #include "imgui_neo_internal.h"
 #include "imgui_neo_sequencer.h"
-#include "ResUtil.hpp"
+#include "ImGuizmo.h"
 
 #include "util/UUIUtil.hpp"
 
@@ -60,6 +60,8 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 }
 
 inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
+	if(track.mKeys.size() == 0) return 0.0f;
+	//I don't know how this works when there is only one keyframe. I don't want to know how this works with only one keyframe. But it works when there is only one keyframe.
 	CKeyframeCommon nextKeyframe, prevKeyframe;
 	for(auto keyframe : track.mKeys){
 		if(currentFrame >= keyframe) prevKeyframe = track.mFrames[keyframe];
@@ -70,6 +72,24 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 	}
 
 	return glm::mix(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+}
+
+inline void AddUpdateKeyframe(float value, float delta, uint32_t currentFrame, CTrackCommon* track){
+	if(delta != 0.0f){
+		if(track->mFrames.contains(currentFrame)){
+			track->mFrames.at(currentFrame).value = value + delta;
+		} else {
+			track->AddKeyframe(currentFrame, value + delta);
+		}
+	}
+}
+
+glm::vec3 UCammieContext::ManipulationGizmo(glm::vec3 position){
+	glm::mat4 mtx = glm::translate(glm::identity<glm::mat4>(), position);
+	glm::mat4 delta;
+
+    ImGuizmo::Manipulate(&mCamera.GetViewMatrix()[0][0], &mCamera.GetProjectionMatrix()[0][0], ImGuizmo::TRANSLATE, ImGuizmo::WORLD, &mtx[0][0], &delta[0][0], NULL);
+	return glm::vec3(delta[3]);
 }
 
 UCammieContext::UCammieContext(){
@@ -101,20 +121,7 @@ bool UCammieContext::Update(float deltaTime) {
 	if(!(mPlaying && mViewCamera)) mCamera.Update(deltaTime);
 
 	if(ImGui::IsKeyPressed(ImGuiKey_Space)){
-		if(!std::count(XPositionTrack.mKeys.begin(), XPositionTrack.mKeys.end(), mCurrentFrame)){
-			XPositionTrack.mKeys.insert(std::upper_bound(XPositionTrack.mKeys.begin(), XPositionTrack.mKeys.end(), mCurrentFrame), mCurrentFrame);
-			XPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().x, 0, 0}});
-		}
-
-		if(!std::count(YPositionTrack.mKeys.begin(), YPositionTrack.mKeys.end(), mCurrentFrame)){
-			YPositionTrack.mKeys.insert(std::upper_bound(YPositionTrack.mKeys.begin(), YPositionTrack.mKeys.end(), mCurrentFrame), mCurrentFrame);
-			YPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().y, 0, 0}});
-		}
-
-		if(!std::count(ZPositionTrack.mKeys.begin(), ZPositionTrack.mKeys.end(), mCurrentFrame)){
-			ZPositionTrack.mKeys.insert(std::upper_bound(ZPositionTrack.mKeys.begin(), ZPositionTrack.mKeys.end(), mCurrentFrame), mCurrentFrame);
-			ZPositionTrack.mFrames.insert({(uint32_t)mCurrentFrame, {(float)mCurrentFrame, mCamera.GetPosition().z, 0, 0}});
-		}
+		// insert keyframe at current cam pos
     }
 
 	return true;
@@ -248,10 +255,12 @@ void UCammieContext::Render(float deltaTime) {
 	centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame);
 	centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame);
 
+	float twist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
+
+	//TODO Add way to do this for fov/twist
+
 	mBillboardManager.mBillboards[1].Position = centerPos;
 	mBillboardManager.mBillboards[0].Position = eyePos;
-
-	float twist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
 
 	if((mPlaying && (mCurrentFrame != mEndFrame)) || mUpdateCameraPosition){
 		if(mViewCamera){
@@ -265,7 +274,25 @@ void UCammieContext::Render(float deltaTime) {
 		mUpdateCameraPosition = false;
 	} else if(mPlaying && mCurrentFrame == mEndFrame){
 		mPlaying = false;
-    }
+    } else if(!mPlaying){
+		ImGuizmo::BeginFrame();
+		ImGuiIO& io = ImGui::GetIO();
+		ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+		// I don't like that this is in the render function but its whatever
+		if(!ImGui::IsKeyDown(ImGuiKey_LeftCtrl)){
+			glm::vec3 camDelta = ManipulationGizmo(eyePos);
+			AddUpdateKeyframe(eyePos.x, camDelta.x, mCurrentFrame, &XPositionTrack);
+			AddUpdateKeyframe(eyePos.y, camDelta.y, mCurrentFrame, &YPositionTrack);
+			AddUpdateKeyframe(eyePos.z, camDelta.z, mCurrentFrame, &ZPositionTrack);
+		} else {
+			glm::vec3 targetDelta = ManipulationGizmo(centerPos);
+			AddUpdateKeyframe(centerPos.x, targetDelta.x, mCurrentFrame, &XTargetTrack);
+			AddUpdateKeyframe(centerPos.y, targetDelta.y, mCurrentFrame, &YTargetTrack);
+			AddUpdateKeyframe(centerPos.z, targetDelta.z, mCurrentFrame, &ZTargetTrack);
+		}
+	}
+
 }
 
 void UCammieContext::RenderMainWindow(float deltaTime) {
