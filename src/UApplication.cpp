@@ -5,10 +5,13 @@ void UApplication::Run() {
 	Clock::time_point lastFrameTime, thisFrameTime;
 
 	while (true) {
-		lastFrameTime = thisFrameTime;
 		thisFrameTime = UUtil::GetTime();
 
-		if (!Execute(UUtil::GetDeltaTime(lastFrameTime, thisFrameTime)))
-			break;
+		if(UUtil::GetDeltaTime(lastFrameTime, thisFrameTime) > 1.0/30.0f){
+			if (!Execute(UUtil::GetDeltaTime(lastFrameTime, thisFrameTime)))
+				break;
+			lastFrameTime = thisFrameTime;
+		}
+			
 	}
 }

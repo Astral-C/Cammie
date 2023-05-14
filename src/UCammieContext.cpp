@@ -42,7 +42,7 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 			selected = false;
 
 			uint32_t selected_count = ImGui::GetNeoKeyframeSelectionSize();
-			ImGui::FrameIndexType * toRemove = new ImGui::FrameIndexType[selected_count];
+			ImGui::FrameIndexType* toRemove = new ImGui::FrameIndexType[selected_count];
 
 			ImGui::GetNeoKeyframeSelection(toRemove);
 
@@ -61,6 +61,10 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 
 inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 	if(track.mKeys.size() == 0) return 0.0f;
+	if(track.mKeys.size() == 1) {
+		if(currentFrame > track.mKeys[0]) return track.mFrames[track.mKeys[0]].value;
+		return glm::mix(0.0f, track.mFrames[track.mKeys[0]].value, currentFrame / track.mFrames[track.mKeys[0]].frame);
+	}
 	//I don't know how this works when there is only one keyframe. I don't want to know how this works with only one keyframe. But it works when there is only one keyframe.
 	CKeyframeCommon nextKeyframe, prevKeyframe;
 	for(auto keyframe : track.mKeys){
@@ -93,6 +97,7 @@ glm::vec3 UCammieContext::ManipulationGizmo(glm::vec3 position){
 }
 
 UCammieContext::UCammieContext(){
+	BinModel::InitShaders();
 	Options.LoadOptions();
 	mGrid.Init();
 	mBillboardManager.Init(128, 2);
@@ -116,12 +121,28 @@ UCammieContext::UCammieContext(){
 	mEndFrame = 10;
 }
 
+UCammieContext::~UCammieContext(){
+	BinModel::DestroyShaders();
+}
+
 bool UCammieContext::Update(float deltaTime) {
 	
-	if(!(mPlaying && mViewCamera)) mCamera.Update(deltaTime);
+	if(!(mPlaying && mViewCamera)){
+		mCamera.Update(deltaTime);
+	} else {
+		mCamera.UpdateSimple();
+	}
 
 	if(ImGui::IsKeyPressed(ImGuiKey_Space)){
-		// insert keyframe at current cam pos
+		if(ImGui::IsKeyDown(ImGuiKey_LeftShift)){
+			if(!TwistTrack.mFrames.contains(mCurrentFrame)){
+				TwistTrack.AddKeyframe(mCurrentFrame, 0);
+			}
+        } else {
+			if(!FovYTrack.mFrames.contains(mCurrentFrame)){
+				FovYTrack.AddKeyframe(mCurrentFrame, mCamera.mFovy);
+			}
+		}
     }
 
 	return true;
@@ -168,7 +189,7 @@ void UCammieContext::Render(float deltaTime) {
 		ImGui::SameLine();
 		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; mCamera.ResetView(); }
 		if(mPlaying){ ImGui::SameLine(); if(ImGui::Button("Stop")) mPlaying = false; }
-		if(!mShowZones){ ImGui::SameLine(); if(ImGui::Button("Zones")) mShowZones = true; }
+		if(!mShowZones){ ImGui::SameLine(); if(ImGui::Button("Rooms")) mShowZones = true; }
 		ImGui::SameLine(ImGui::GetWindowWidth() - 50);
 		ImGui::InputInt("End Frame", &mEndFrame);
 		ImGui::Separator();
@@ -223,11 +244,11 @@ void UCammieContext::Render(float deltaTime) {
 		ImGui::SetNextWindowClass(&mainWindowOverride);
 
 		ImGui::Begin("zoneWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-			ImGui::Text("Zones");
-			ImGui::SameLine(ImGui::GetWindowWidth()-40);
+			ImGui::Text("Rooms");
+			ImGui::SameLine(ImGui::GetWindowWidth()-50);
 			if(ImGui::Button("Hide")) mShowZones = false;
 			ImGui::Separator();
-			mGalaxyRenderer.RenderUI();
+			mMapRenderer.RenderUI();
 		ImGui::End();
 	}
 
@@ -236,12 +257,15 @@ void UCammieContext::Render(float deltaTime) {
 	view = mCamera.GetViewMatrix();
 
 	if(!mSetLights) SetLights();
-	J3DUniformBufferObject::SetProjAndViewMatrices(&projection, &view);
+	//J3DUniformBufferObject::SetProjAndViewMatrices(&projection, &view);
 	
 	//Render Models here
 
-	mGrid.Render(mCamera.GetPosition(), mCamera.GetProjectionMatrix(), mCamera.GetViewMatrix());
-	mGalaxyRenderer.RenderGalaxy(deltaTime);
+	mGrid.Render(mCamera.GetPosition(), projection, view);
+	
+	//mGalaxyRenderer.RenderGalaxy(deltaTime);
+	mMapRenderer.RenderMap(deltaTime, &projection, &view);
+	
 	mBillboardManager.Draw(&mCamera);
 
 	glm::vec3 eyePos;// = mCamera.GetEye();
@@ -255,8 +279,6 @@ void UCammieContext::Render(float deltaTime) {
 	centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame);
 	centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame);
 
-	float twist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
-
 	//TODO Add way to do this for fov/twist
 
 	mBillboardManager.mBillboards[1].Position = centerPos;
@@ -265,6 +287,8 @@ void UCammieContext::Render(float deltaTime) {
 	if((mPlaying && (mCurrentFrame != mEndFrame)) || mUpdateCameraPosition){
 		if(mViewCamera){
 			mCamera.mFovy = UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame);
+
+			mCamera.mTwist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
 
 			mCamera.SetCenter(centerPos);
 			mCamera.SetEye(eyePos);
@@ -302,11 +326,6 @@ void UCammieContext::RenderMainWindow(float deltaTime) {
 
 static bool isGalaxy2 = false;
 
-void GalaxySelectPane(const char *vFilter, IGFDUserDatas vUserDatas, bool *vCantContinue) // if vCantContinue is false, the user cant validate the dialog
-{
-    ImGui::Checkbox("Is Galaxy 2", &isGalaxy2);
-}
-
 
 void UCammieContext::RenderMenuBar() {
 	mOptionsOpen = false;
@@ -316,7 +335,7 @@ void UCammieContext::RenderMenuBar() {
 		if (ImGui::MenuItem("Open...")) {
 			OpenModelCB();
 		}
-		if (ImGui::MenuItem("Open Galaxy...")) {
+		if (ImGui::MenuItem("Open Map...")) {
 			//TODO: Open zone..
 			bIsGalaxyDialogOpen = true;
 		}
@@ -346,7 +365,7 @@ void UCammieContext::RenderMenuBar() {
 	}
 	if (bIsGalaxyDialogOpen){
 		//TODO: make this ensure the selected root is a galaxy/2 root!
-		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, Options.mRootPath == "" ? "." : Options.mRootPath / "DATA" / "files" / "StageData" / ".", "", std::bind(&GalaxySelectPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+		ImGuiFileDialog::Instance()->OpenDialog("OpenMapDialog", "Open Map Archive", "Compressed RARC Archive (*.szp){.szp}", (Options.mRootPath / "files" / "Map" / ".").string());
 	}
 	if (bIsSaveDialogOpen) {
 		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Save Camera File", "Camera Animation (*.canm){.canm}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
@@ -369,12 +388,15 @@ void UCammieContext::RenderMenuBar() {
 		ImGuiFileDialog::Instance()->Close();
 	}
 
-	if (ImGuiFileDialog::Instance()->Display("OpenGalaxyDialog")) {
+	if (ImGuiFileDialog::Instance()->Display("OpenMapDialog")) {
 		if (ImGuiFileDialog::Instance()->IsOk()) {
 			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
 
 			try {
-				mGalaxyRenderer.LoadGalaxy(FilePath, isGalaxy2);
+				//mGalaxyRenderer.LoadGalaxy(FilePath, isGalaxy2);
+				//bStream::CFileStream file(FilePath, bStream::Endianess::Big, bStream::OpenMode::In);
+				//mModel = std::make_shared<BinModel>(&file);
+				mMapRenderer.LoadMap(FilePath);
 			}
 			catch (std::exception e) {
 				std::cout << "Failed to load galaxy " << FilePath << "! Exception: " << e.what() << "\n";
@@ -422,25 +444,6 @@ void UCammieContext::SaveModelCB() {
 
 void UCammieContext::SetLights() {
 
-	J3DLight lights[8];
-
-	lights[0].Position = glm::vec4(00000, 00000, 00000, 1);
-	lights[0].AngleAtten = glm::vec4(1.0, 0.0, 0.0, 1);
-	lights[0].DistAtten = glm::vec4(1.0, 0.0, 0.0, 1);
-
-	lights[1].Position = glm::vec4(1.0, 0.0, 0.0, 1);
-	lights[1].AngleAtten = glm::vec4(1.0, 0.0, 0.0, 1);
-	lights[1].DistAtten = glm::vec4(1.0, 0., 0.0, 1);
-
-	lights[2].Position = glm::vec4(0.0, 0.0, 0.0, 1);
-	lights[2].AngleAtten = glm::vec4(0, 0, 1, 1);
-	lights[2].DistAtten = glm::vec4(25.0, 0.0, -24.0, 1);
-	lights[2].Direction = glm::vec4(1.0, -0.868448, 0.239316, 1);
-
-	for (int i = 0; i < 8; i++)
-		lights[i].Color = glm::vec4(1, 1, 1, 1);
-
-	J3DUniformBufferObject::SetLights(lights);
 }
 
 void UCammieContext::SaveAnimation(std::filesystem::path savePath){

@@ -3,13 +3,14 @@
 #include "UCamera.hpp"
 
 #include "io/KeyframeIO.hpp"
+#include "io/BinIO.hpp"
 
 #include <vector>
 #include <filesystem>
 #include <memory>
 #include <UGrid.hpp>
 #include <UPointSpriteManager.hpp>
-#include <UGalaxy.hpp>
+#include <UMapRenderer.hpp>
 
 #include <ImGuiFileDialog.h>
 
@@ -41,7 +42,10 @@ class UCammieContext {
 	USceneCamera mCamera;
 	UGrid mGrid;
 	CPointSpriteManager mBillboardManager;
-	CGalaxyRenderer mGalaxyRenderer;
+	//CGalaxyRenderer mGalaxyRenderer;
+	//std::shared_ptr<BinModel> mModel { nullptr };
+	CMapRenderer mMapRenderer;
+
 
 	//std::vector<std::unique_ptr<GalaxyZone>();
 
@@ -84,7 +88,7 @@ class UCammieContext {
 
 public:
 	UCammieContext();
-	~UCammieContext() {}
+	~UCammieContext();
 
 	bool Update(float deltaTime);
 	void Render(float deltaTime);

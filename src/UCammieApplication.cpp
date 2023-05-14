@@ -34,7 +34,7 @@ bool UCammieApplication::Setup() {
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 	glfwWindowHint(GLFW_DEPTH_BITS, 24);
 
-	mWindow = glfwCreateWindow(1280, 720, "Cammie", nullptr, nullptr);
+	mWindow = glfwCreateWindow(1280, 960, "Cammie", nullptr, nullptr);
 	if (mWindow == nullptr) {
 		glfwTerminate();
 		return false;
@@ -79,7 +79,7 @@ bool UCammieApplication::Teardown() {
 	glfwDestroyWindow(mWindow);
 	glfwTerminate();
 
-	J3DUniformBufferObject::DestroyUBO();
+	//J3DUniformBufferObject::DestroyUBO();
 
 	delete mContext;
 

@@ -6,7 +6,7 @@
 
 USceneCamera::USceneCamera() : mNearPlane(0.1f), mFarPlane(10000000.f), mFovy(glm::radians(60.f)),
     mCenter(ZERO), mEye(ZERO), mPitch(0.f), mYaw(glm::half_pi<float>()), mUp(UNIT_Y), mRight(UNIT_X), mForward(UNIT_Z),
-    mAspectRatio(16.f / 9.f), mMoveSpeed(1000.f), mMouseSensitivity(0.25f)
+    mAspectRatio(4.f / 3.f), mMoveSpeed(1000.f), mMouseSensitivity(0.25f), mTwist(0.0f)
 {
 	mCenter = mEye - mForward;
 }
@@ -40,6 +40,19 @@ void USceneCamera::Update(float deltaTime) {
 
 	mEye += moveDir * (actualMoveSpeed * deltaTime);
 	mCenter = mEye - mForward;
+}
+
+void USceneCamera::UpdateSimple() {
+	mForward = glm::normalize(mEye - mCenter);
+	mRight = glm::normalize(glm::cross(mForward, UNIT_Y));
+	mUp = glm::normalize(glm::cross(mRight, mForward));
+
+
+	mUp.y = mUp.y * cos(mTwist);
+	mUp.x = cos(mYaw) * cos(mPitch);
+	mUp.z = sin(mYaw) * cos(mPitch);
+
+	mUp = glm::normalize(mUp);
 }
 
 void USceneCamera::Rotate(float deltaTime, glm::vec2 mouseDelta) {

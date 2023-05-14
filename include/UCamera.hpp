@@ -32,6 +32,7 @@ class USceneCamera {
 	void Rotate(float deltaTime, glm::vec2 mouseDelta);
 
 public:
+	float mTwist;
 	float mAspectRatio;
 	float mFovy;
 
@@ -39,6 +40,7 @@ public:
 	~USceneCamera() {}
 
 	void Update(float deltaTime);
+	void UpdateSimple();
 
 	glm::vec3 GetPosition() { return mEye; }
 	glm::mat4 GetViewMatrix() { return glm::lookAt(mEye, mCenter, mUp); }
@@ -46,7 +48,7 @@ public:
 
 	void SetCenter(glm::vec3 v) { mCenter = v; }
 	void SetEye(glm::vec3 v) { mEye = v; }
-	void ResetView() { mPitch = 0.0f; mYaw = glm::half_pi<float>(); mUp = UNIT_Y; mRight = UNIT_X; mForward = UNIT_Z;}
+	void ResetView() { mPitch = 0.0f; mYaw = glm::half_pi<float>(); mUp = UNIT_Y; mRight = UNIT_X; mForward = UNIT_Z; mTwist = 0.0f;}
 
 	glm::vec3 GetCenter() { return mCenter; }
 	glm::vec3 GetEye() { return mEye; }
