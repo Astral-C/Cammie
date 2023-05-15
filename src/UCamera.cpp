@@ -44,15 +44,8 @@ void USceneCamera::Update(float deltaTime) {
 
 void USceneCamera::UpdateSimple() {
 	mForward = glm::normalize(mEye - mCenter);
-	mRight = -glm::normalize(glm::cross(mForward, UNIT_Y));
+	mRight = glm::normalize(glm::cross(mForward, UNIT_Y));
 	mUp = glm::normalize(glm::cross(mRight, mForward));
-
-
-	mUp.y = mUp.y * cos(mTwist);
-	mUp.x = cos(mYaw) * cos(mPitch);
-	mUp.z = sin(mYaw) * cos(mPitch);
-
-	mUp = glm::normalize(mUp);
 }
 
 void USceneCamera::Rotate(float deltaTime, glm::vec2 mouseDelta) {

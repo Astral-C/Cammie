@@ -124,7 +124,7 @@ bool SResUtility::SGCResourceManager::SaveArchiveCompressed(const char* path, GC
 void SResUtility::SOptions::LoadOptions(){
 	auto optionsPath = std::filesystem::current_path() / "settings.ini";
 	if(std::filesystem::exists(optionsPath)){
-		ini_t* config = ini_load(optionsPath.c_str());
+		ini_t* config = ini_load(optionsPath.string().c_str());
 		if(config == nullptr) return;
 
 		const char* path = ini_get(config, "settings", "root");

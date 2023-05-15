@@ -23,8 +23,6 @@ class USceneCamera {
 	glm::vec3 mRight;
 	glm::vec3 mUp;
 
-	float mNearPlane;
-	float mFarPlane;
 
 	float mMoveSpeed;
 	float mMouseSensitivity;
@@ -35,6 +33,8 @@ public:
 	float mTwist;
 	float mAspectRatio;
 	float mFovy;
+	float mNearPlane;
+	float mFarPlane;
 
 	USceneCamera();
 	~USceneCamera() {}

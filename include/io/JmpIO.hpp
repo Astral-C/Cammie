@@ -5,7 +5,7 @@
 #include <memory>
 #include <vector>
 
-#include <nlohmann/json.hpp>
+#include <json.hpp>
 
 constexpr size_t JMP_HEADER_SIZE = 16;
 constexpr size_t JMP_FIELD_DEF_SIZE = 12;

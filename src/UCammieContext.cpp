@@ -59,23 +59,39 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 	return selected;
 }
 
+float hermiteInterpolation(float point0, float tangent0, float point1, float tangent1, float t) {
+    float t2 = t * t;
+    float t3 = t2 * t;
+    float h1 = 2 * t3 - 3 * t2 + 1;
+    float h2 = -2 * t3 + 3 * t2;
+    float h3 = t3 - 2 * t2 + t;
+    float h4 = t3 - t2;
+
+    return h1 * point0 + h2 * point1 + h3 * tangent0 + h4 * tangent1;
+}
+
 inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 	if(track.mKeys.size() == 0) return 0.0f;
 	if(track.mKeys.size() == 1) {
 		if(currentFrame > track.mKeys[0]) return track.mFrames[track.mKeys[0]].value;
-		return glm::mix(0.0f, track.mFrames[track.mKeys[0]].value, currentFrame / track.mFrames[track.mKeys[0]].frame);
+		return hermiteInterpolation(0.0f, 1.0f, track.mFrames[track.mKeys[0]].value, track.mFrames[track.mKeys[0]].inslope, currentFrame / track.mFrames[track.mKeys[0]].frame);
 	}
 	//I don't know how this works when there is only one keyframe. I don't want to know how this works with only one keyframe. But it works when there is only one keyframe.
 	CKeyframeCommon nextKeyframe, prevKeyframe;
+	bool hasNext = false;
 	for(auto keyframe : track.mKeys){
 		if(currentFrame >= keyframe) prevKeyframe = track.mFrames[keyframe];
 		if(currentFrame < keyframe) {
 			nextKeyframe = track.mFrames[keyframe];
+			hasNext = true;
 			break;
 		}
 	}
 
-	return glm::mix(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	if(!hasNext) return prevKeyframe.value;
+
+	return hermiteInterpolation(prevKeyframe.value, prevKeyframe.outslope, nextKeyframe.value, nextKeyframe.inslope, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	//glm::smoothstep(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
 }
 
 inline void AddUpdateKeyframe(float value, float delta, uint32_t currentFrame, CTrackCommon* track){
@@ -108,14 +124,14 @@ UCammieContext::UCammieContext(){
 	mBillboardManager.mBillboards.push_back(CPointSprite());
 
 	mBillboardManager.mBillboards[0].Texture = 0;
-	mBillboardManager.mBillboards[0].SpriteSize = 204800;
+	mBillboardManager.mBillboards[0].SpriteSize = 51200;
 	mBillboardManager.mBillboards[1].Texture = 1;
-	mBillboardManager.mBillboards[1].SpriteSize = 204800;
+	mBillboardManager.mBillboards[1].SpriteSize = 51200;
 
 	GCResourceManager.Init();
 
 	ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF((std::filesystem::current_path() / "res/NotoSansJP-Regular.otf").c_str(), 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+    io.Fonts->AddFontFromFileTTF((std::filesystem::current_path() / "res/NotoSansJP-Regular.otf").string().c_str(), 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	mCurrentFrame = mStartFrame = 0;
 	mEndFrame = 10;
@@ -128,6 +144,8 @@ UCammieContext::~UCammieContext(){
 bool UCammieContext::Update(float deltaTime) {
 	
 	if(!(mPlaying && mViewCamera)){
+		mCamera.mNearPlane = 0.1f;
+		mCamera.mFarPlane = 100000.0f;
 		mCamera.Update(deltaTime);
 	} else {
 		mCamera.UpdateSimple();
@@ -213,6 +231,9 @@ void UCammieContext::Render(float deltaTime) {
 			if(RenderTimelineTrack("Fov", &FovYTrack, &selectedKeyframe)) selectedTrack = &FovYTrack;
 			if(RenderTimelineTrack("Twist", &TwistTrack, &selectedKeyframe)) selectedTrack = &TwistTrack;
 
+			if(RenderTimelineTrack("Z Near", &ZNearTrack, &selectedKeyframe)) selectedTrack = &ZNearTrack;
+			if(RenderTimelineTrack("Z Far", &ZFarTrack, &selectedKeyframe)) selectedTrack = &ZFarTrack;
+
 		ImGui::EndNeoSequencer();
 
 	ImGui::End();
@@ -225,7 +246,7 @@ void UCammieContext::Render(float deltaTime) {
 		if(selectedKeyframe != -1 && selectedTrack != nullptr && selectedTrack->mFrames.count(selectedKeyframe) != 0){
 			ImGui::InputFloat("Value", &selectedTrack->mFrames.at(selectedKeyframe).value);
 
-			if(selectedTrack->mType == ETrackType::CKAN){
+			if(selectedTrack->mType == ETrackType::CMN){
 				if(selectedTrack->mSymmetricSlope){
 					ImGui::InputFloat("Slope", &selectedTrack->mFrames.at(selectedKeyframe).inslope);
 				} else {
@@ -256,7 +277,6 @@ void UCammieContext::Render(float deltaTime) {
 	projection = mCamera.GetProjectionMatrix();
 	view = mCamera.GetViewMatrix();
 
-	if(!mSetLights) SetLights();
 	//J3DUniformBufferObject::SetProjAndViewMatrices(&projection, &view);
 	
 	//Render Models here
@@ -286,9 +306,12 @@ void UCammieContext::Render(float deltaTime) {
 
 	if((mPlaying && (mCurrentFrame != mEndFrame)) || mUpdateCameraPosition){
 		if(mViewCamera){
-			mCamera.mFovy = UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame);
+			mCamera.mFovy = glm::radians(UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame));
 
-			mCamera.mTwist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
+			//mCamera.mTwist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
+
+			mCamera.mFarPlane = UpdateCameraAnimationTrack(ZFarTrack, mCurrentFrame);
+			mCamera.mNearPlane = UpdateCameraAnimationTrack(ZNearTrack, mCurrentFrame);
 
 			mCamera.SetCenter(centerPos);
 			mCamera.SetEye(eyePos);
@@ -361,14 +384,14 @@ void UCammieContext::RenderMenuBar() {
 	ImGui::EndMainMenuBar();
 
 	if (bIsFileDialogOpen) {
-		ImGuiFileDialog::Instance()->OpenDialog("OpenFileDialog", "Choose Camera File", "Camera Animation (*.canm){.canm}", ".");
+		ImGuiFileDialog::Instance()->OpenDialog("OpenFileDialog", "Choose Camera File", "Camera Animation (*.cmn){.cmn}", ".");
 	}
 	if (bIsGalaxyDialogOpen){
 		//TODO: make this ensure the selected root is a galaxy/2 root!
 		ImGuiFileDialog::Instance()->OpenDialog("OpenMapDialog", "Open Map Archive", "Compressed RARC Archive (*.szp){.szp}", (Options.mRootPath / "files" / "Map" / ".").string());
 	}
 	if (bIsSaveDialogOpen) {
-		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Save Camera File", "Camera Animation (*.canm){.canm}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
+		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Save Camera File", "Camera Animation (*.cmn){.cmn}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
 	}
 
 	if (ImGuiFileDialog::Instance()->Display("OpenFileDialog")) {
@@ -451,41 +474,33 @@ void UCammieContext::SaveAnimation(std::filesystem::path savePath){
 
 	// Write header
 
-	camn.writeString("ANDO");
-	camn.writeString(mFrameType);
+	camn.writeUInt16(mEndFrame);
+	camn.writeUInt16(0); //padding
 
-	camn.writeUInt32(mCamUnkData[0]);
-	camn.writeUInt32(mCamUnkData[1]);
-	camn.writeUInt32(mCamUnkData[2]);
-	camn.writeUInt32(mCamUnkData[3]);
-
-	camn.writeInt32(mEndFrame);
-	camn.writeUInt32(mFrameType == "CANM" ? 64 : 96);
-	std::cout << "Should be 0x20!" << std::hex << camn.tell() << std::endl;
-
-	ETrackType type = (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN);
+	ETrackType type = ETrackType::CMN;
 
 	std::vector<float> FrameData;
 
-	XPositionTrack.WriteTrack(&camn, FrameData, type);
-	YPositionTrack.WriteTrack(&camn, FrameData, type);
 	ZPositionTrack.WriteTrack(&camn, FrameData, type);
+	YPositionTrack.WriteTrack(&camn, FrameData, type);
+	XPositionTrack.WriteTrack(&camn, FrameData, type);
 
-	XTargetTrack.WriteTrack(&camn, FrameData, type);
-	YTargetTrack.WriteTrack(&camn, FrameData, type);
 	ZTargetTrack.WriteTrack(&camn, FrameData, type);
+	YTargetTrack.WriteTrack(&camn, FrameData, type);
+	XTargetTrack.WriteTrack(&camn, FrameData, type);
 
 	TwistTrack.WriteTrack(&camn, FrameData, type);
 	FovYTrack.WriteTrack(&camn, FrameData, type);
 
-	camn.writeUInt32(FrameData.size() + 2);
+	ZNearTrack.WriteTrack(&camn, FrameData, type);
+	ZFarTrack.WriteTrack(&camn, FrameData, type);
+
+	camn.writeFloat(UnknownValue);
+	
 	for(auto& flt : FrameData){
 		camn.writeFloat(flt);
     }
 
-	camn.writeUInt32(0x3DCCCCCD);
-	camn.writeUInt32(0x4E6E6B28);
-	camn.writeUInt32(0xFFFFFFFF);
 }
 
 void UCammieContext::LoadFromPath(std::filesystem::path filePath) {
@@ -510,37 +525,39 @@ void UCammieContext::LoadFromPath(std::filesystem::path filePath) {
 	ZTargetTrack.mKeys.clear();
 	ZTargetTrack.mFrames.clear();
 
-
 	FovYTrack.mKeys.clear();
 	FovYTrack.mFrames.clear();
 
 	TwistTrack.mKeys.clear();
 	TwistTrack.mFrames.clear();
 
+	ZNearTrack.mKeys.clear();
+	ZNearTrack.mFrames.clear();
+
+	ZFarTrack.mKeys.clear();
+	ZFarTrack.mFrames.clear();
+
 	bStream::CFileStream camn(filePath.string(), bStream::Endianess::Big, bStream::OpenMode::In);
 
-	camn.readString(4);
+	mEndFrame = camn.readUInt16();
+	camn.skip(2);
 
-	mFrameType = camn.readString(4);
-
-	mCamUnkData[0] = camn.readUInt32();
-	mCamUnkData[1] = camn.readUInt32();
-	mCamUnkData[2] = camn.readUInt32();
-	mCamUnkData[3] = camn.readUInt32();
-
-	camn.seek(0x18);
-	mEndFrame = camn.readInt32();
-	mTrackSize = camn.readUInt32();
-
-	XPositionTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	YPositionTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	ZPositionTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	ZPositionTrack.LoadTrack(&camn, 68, ETrackType::CMN);
+	YPositionTrack.LoadTrack(&camn, 68, ETrackType::CMN);
+	XPositionTrack.LoadTrack(&camn, 68, ETrackType::CMN);
 	
-	XTargetTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	YTargetTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	ZTargetTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+	ZTargetTrack.LoadTrack(&camn, 68, ETrackType::CMN);
+	YTargetTrack.LoadTrack(&camn, 68, ETrackType::CMN);
+	XTargetTrack.LoadTrack(&camn, 68, ETrackType::CMN);
 
-	TwistTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
-	FovYTrack.LoadTrack(&camn, 0x20 + mTrackSize, (mFrameType == "CANM" ? ETrackType::CANM : ETrackType::CKAN));
+
+	TwistTrack.LoadTrack(&camn, 68, ETrackType::CMN);
+	FovYTrack.LoadTrack(&camn, 68, ETrackType::CMN);
+
+	ZNearTrack.LoadTrack(&camn, 68, ETrackType::CMN);
+	ZFarTrack.LoadTrack(&camn, 68, ETrackType::CMN);
     
+	camn.seek(0x40);
+	UnknownValue = camn.readFloat();
+
 }

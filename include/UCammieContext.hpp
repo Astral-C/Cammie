@@ -32,11 +32,14 @@ class UCammieContext {
 	CTrackCommon YTargetTrack;
 	CTrackCommon ZTargetTrack;
 
-
 	CTrackCommon TwistTrack;
 	CTrackCommon FovYTrack;
 
+	CTrackCommon ZNearTrack;
+	CTrackCommon ZFarTrack;
 
+	float UnknownValue;
+	
 	int mCurrentFrame, mStartFrame, mEndFrame;
 
 	USceneCamera mCamera;
@@ -51,10 +54,6 @@ class UCammieContext {
 
 	uint32_t mMainDockSpaceID;
 	uint32_t mDockNodeBottomID, mDockNodeRightID, mDockNodeBottomRightID;
-
-	uint32_t mCamUnkData[4];
-	uint32_t mTrackSize { 0x60 };
-	std::string mFrameType { "CKAN" };
 	
 	bool bIsDockingSetUp { false };
 	bool bIsFileDialogOpen { false };

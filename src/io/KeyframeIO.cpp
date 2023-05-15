@@ -4,23 +4,30 @@
 #include <cmath>
 
 void CTrackCommon::WriteTrack(bStream::CStream* stream, std::vector<float>& frameDataBuffer, ETrackType type){
-	if (type == ETrackType::CKAN){
-		stream->writeInt32(mKeys.size());
-		stream->writeInt32(frameDataBuffer.size());
-		stream->writeInt32(mSymmetricSlope);
-    } else {
-		stream->writeInt32(mKeys.size());
-		stream->writeInt32(frameDataBuffer.size());
-    }
+
+	stream->writeUInt16(mKeys.size());
+	stream->writeUInt16(frameDataBuffer.size());
+    stream->writeUInt16(mElementCount);
 
 	for (size_t frame = 0; frame < mKeys.size(); frame++){
 		auto framedata = mFrames.at(mKeys.at(frame));
-		frameDataBuffer.push_back(framedata.frame);
-		frameDataBuffer.push_back(framedata.value);\
-		if(type == ETrackType::CKAN){
-			frameDataBuffer.push_back(framedata.inslope);
-			if(mSymmetricSlope != 0) frameDataBuffer.push_back(framedata.outslope);
-		}
+
+        if(mElementCount == 1){
+            frameDataBuffer.push_back(framedata.value);
+        } else if(mElementCount == 2) {
+            frameDataBuffer.push_back(framedata.frame);
+            frameDataBuffer.push_back(framedata.value);
+        } else if(mElementCount == 3) {
+            frameDataBuffer.push_back(framedata.frame);
+            frameDataBuffer.push_back(framedata.value);
+            frameDataBuffer.push_back(framedata.inslope);
+        } else if(mElementCount == 4){
+            frameDataBuffer.push_back(framedata.frame);
+            frameDataBuffer.push_back(framedata.value);
+            frameDataBuffer.push_back(framedata.inslope);
+            frameDataBuffer.push_back(framedata.outslope);
+        }
+
 	}
 }
 
@@ -28,31 +35,44 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
 {
     mType = type;
     
-    uint16_t keyCount = stream->readInt32();
-    uint16_t beginIndex = stream->readInt32();
-    uint16_t slopeFlags = 0;
+    uint16_t keyCount = stream->readUInt16();
+    uint16_t beginIndex = stream->readUInt16();
+    mElementCount = stream->readUInt16();
 
-    if(mType == ETrackType::CKAN){
-        slopeFlags = stream->readInt32();
-		mSymmetricSlope = slopeFlags;
+    if(mType == ETrackType::CMN || mType == ETrackType::PTH){
+        mSymmetricSlope = (mElementCount == 3);
+    } else {
+        mSymmetricSlope = (mElementCount == 0x80);
     }
 
     size_t group = stream->tell();
 
-    stream->seek(keyframeDataOffset + 4 + (4 * beginIndex));
+    stream->seek(keyframeDataOffset + (4 * beginIndex));
     for (size_t frame = 0; frame < keyCount; frame++)
     {
         
         CKeyframeCommon keyframe;
 
-        keyframe.frame = stream->readFloat();
-        keyframe.value = stream->readFloat();
-
-        if(mType == ETrackType::CKAN){
+        if(mElementCount == 1){
+            keyframe.frame = 0;
+            keyframe.value = stream->readFloat();
+        } else if(mElementCount == 2) {
+            keyframe.frame = stream->readFloat();
+            keyframe.value = stream->readFloat();
+        } else if(mElementCount == 3) {
+            keyframe.frame = stream->readFloat();
+            keyframe.value = stream->readFloat();
             keyframe.inslope = stream->readFloat();
-            if(slopeFlags != 0) keyframe.outslope = stream->readFloat();
+            keyframe.outslope = keyframe.inslope;
+        } else if(mElementCount == 4){
+            keyframe.frame = stream->readFloat();
+            keyframe.value = stream->readFloat();
+            keyframe.inslope = stream->readFloat();
+            keyframe.outslope = stream->readFloat();
         }
-        
+
+        //write anm stuff at some point
+         
         mFrames.insert(std::make_pair((uint32_t)keyframe.frame, keyframe));
     }
 

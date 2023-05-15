@@ -5,8 +5,10 @@
 
 enum class ETrackType
 {
-	CKAN,
-    CANM
+	CMN,
+    PTH,
+    LIG,
+    ANM
 };
 
 struct CKeyframeCommon
@@ -19,9 +21,9 @@ struct CKeyframeCommon
 
 class CTrackCommon
 {
-
 public:
-	int32_t mSymmetricSlope;
+    uint16_t mElementCount;
+	uint32_t mSymmetricSlope;
     ETrackType mType;
     std::vector<int32_t> mKeys;
     std::map<uint32_t, CKeyframeCommon> mFrames;
