@@ -26,7 +26,7 @@
 
 
 bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSelection){
-	bool selected;
+	bool selected = false;
 	ImGui::BeginNeoTimelineEx(label.data());
 		for(auto&& key : track->mKeys){
 			ImGui::NeoKeyframe(&key);
@@ -217,22 +217,32 @@ void UCammieContext::Render(float deltaTime) {
 		ImGui::BeginNeoSequencer("Sequencer", &mCurrentFrame, &mStartFrame, &mEndFrame, {0, 0}, mPlaying ? 0 : (ImGuiNeoSequencerFlags_EnableSelection | ImGuiNeoSequencerFlags_Selection_EnableDeletion));
 			if(ImGui::BeginNeoGroup("Position", &mPositionOpen)){
 				if(RenderTimelineTrack("X", &XPositionTrack, &selectedKeyframe)) selectedTrack = &XPositionTrack;
+				std::cout << "Selected keyframe CX " << selectedKeyframe << std::endl;
 				if(RenderTimelineTrack("Y", &YPositionTrack, &selectedKeyframe)) selectedTrack = &YPositionTrack;
+				std::cout << "Selected keyframe CY " << selectedKeyframe << std::endl;
 				if(RenderTimelineTrack("Z", &ZPositionTrack, &selectedKeyframe)) selectedTrack = &ZPositionTrack;
+				std::cout << "Selected keyframe CZ " << selectedKeyframe << std::endl;
 				ImGui::EndNeoGroup();
 			}
 			if(ImGui::BeginNeoGroup("Target", &mTargetOpen)){
 				if(RenderTimelineTrack("X", &XTargetTrack, &selectedKeyframe)) selectedTrack = &XTargetTrack;
+				std::cout << "Selected keyframe TX " << selectedKeyframe << std::endl;
 				if(RenderTimelineTrack("Y", &YTargetTrack, &selectedKeyframe)) selectedTrack = &YTargetTrack;
+				std::cout << "Selected keyframe TY " << selectedKeyframe << std::endl;
 				if(RenderTimelineTrack("Z", &ZTargetTrack, &selectedKeyframe)) selectedTrack = &ZTargetTrack;
+				std::cout << "Selected keyframe TZ " << selectedKeyframe << std::endl;
 				ImGui::EndNeoGroup();
 			}
 
 			if(RenderTimelineTrack("Fov", &FovYTrack, &selectedKeyframe)) selectedTrack = &FovYTrack;
+			std::cout << "Selected keyframe Fov " << selectedKeyframe << std::endl;
 			if(RenderTimelineTrack("Twist", &TwistTrack, &selectedKeyframe)) selectedTrack = &TwistTrack;
+			std::cout << "Selected keyframe Unk " << selectedKeyframe << std::endl;
 
 			if(RenderTimelineTrack("Z Near", &ZNearTrack, &selectedKeyframe)) selectedTrack = &ZNearTrack;
+			std::cout << "Selected keyframe ZNear " << selectedKeyframe << std::endl;
 			if(RenderTimelineTrack("Z Far", &ZFarTrack, &selectedKeyframe)) selectedTrack = &ZFarTrack;
+			std::cout << "Selected keyframe ZFar (" << (&ZFarTrack == selectedTrack) << ") " << selectedKeyframe << std::endl;
 
 		ImGui::EndNeoSequencer();
 
