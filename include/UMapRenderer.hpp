@@ -11,7 +11,7 @@
 #include "ResUtil.hpp"
 
 class CMapRenderer {
-	std::map<uint32_t, std::map<std::string, glm::mat4>> mMapRooms;
+	std::map<uint32_t, std::vector<std::pair<std::string, glm::mat4>>> mMapRooms;
 	std::map<uint32_t, bool> mEnabledRooms;
 
 	void LoadModels(std::string mapNumber, std::string roomNumber);

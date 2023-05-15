@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <GLFW/glfw3.h>
 
-USceneCamera::USceneCamera() : mNearPlane(0.1f), mFarPlane(10000000.f), mFovy(glm::radians(60.f)),
+USceneCamera::USceneCamera() : mNearPlane(0.1f), mFarPlane(100000.f), mFovy(glm::radians(60.f)),
     mCenter(ZERO), mEye(ZERO), mPitch(0.f), mYaw(glm::half_pi<float>()), mUp(UNIT_Y), mRight(UNIT_X), mForward(UNIT_Z),
     mAspectRatio(4.f / 3.f), mMoveSpeed(1000.f), mMouseSensitivity(0.25f), mTwist(0.0f)
 {
@@ -19,9 +19,9 @@ void USceneCamera::Update(float deltaTime) {
 	if (UInput::GetKey(GLFW_KEY_S))
 		moveDir += mForward;
 	if (UInput::GetKey(GLFW_KEY_D))
-		moveDir -= mRight;
-	if (UInput::GetKey(GLFW_KEY_A))
 		moveDir += mRight;
+	if (UInput::GetKey(GLFW_KEY_A))
+		moveDir -= mRight;
 
 	if (UInput::GetKey(GLFW_KEY_Q))
 		moveDir -= UNIT_Y;
@@ -44,7 +44,7 @@ void USceneCamera::Update(float deltaTime) {
 
 void USceneCamera::UpdateSimple() {
 	mForward = glm::normalize(mEye - mCenter);
-	mRight = glm::normalize(glm::cross(mForward, UNIT_Y));
+	mRight = -glm::normalize(glm::cross(mForward, UNIT_Y));
 	mUp = glm::normalize(glm::cross(mRight, mForward));
 
 
@@ -60,7 +60,7 @@ void USceneCamera::Rotate(float deltaTime, glm::vec2 mouseDelta) {
 		return;
 
 	mPitch += mouseDelta.y * deltaTime * mMouseSensitivity;
-	mYaw += mouseDelta.x * deltaTime * mMouseSensitivity;
+	mYaw += -mouseDelta.x * deltaTime * mMouseSensitivity;
 
 	mPitch = std::clamp(mPitch, LOOK_UP_MIN, LOOK_UP_MAX);
 

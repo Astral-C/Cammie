@@ -54,8 +54,12 @@ class BinMaterial {
 public:
 
 	static void DecodeCMPR(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData);
+	static void DecodeRGB5A3(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData);
+	static void DecodeRGB565(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData);
+
 	static uint8_t* DecodeCMPRSubBlock(bStream::CStream* stream);
 	static uint32_t RGB565toRGBA8(uint16_t data);
+	static uint32_t RGB5A3toRGBA8(uint16_t data);
 
     void Bind();
 	BinMaterial(bStream::CStream* stream, uint32_t textureOffset);
@@ -63,9 +67,9 @@ public:
 };
 
 class BinSampler {
-	uint32_t mAmbientColor;
 
 public:
+	glm::vec4 mAmbientColor;
 	uint16_t mTextureID;
     BinSampler(bStream::CStream* stream);
 	BinSampler(){}
@@ -133,6 +137,7 @@ public:
 	float GetRootBoundingSphere() { return mRoot->mBoundingSphereRadius; }
 
 	std::shared_ptr<BinMesh> GetMesh(uint32_t id) { return mMeshes.at(id); }
+	std::shared_ptr<BinSampler> GetSampler(uint32_t id) { return mSamplers.at(id); }
 
     BinModel(bStream::CStream* stream);
 

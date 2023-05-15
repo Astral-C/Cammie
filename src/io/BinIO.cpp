@@ -4,6 +4,10 @@
 #include "io/BinIO.hpp"
 #include <glad/glad.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+
+#include <J3D/J3DTexture.hpp>
+#include <geometry/GXGeometryEnums.hpp>
+
 /*
 *
 * This file is full of hacks and duplicated code. I would like to do it properly later but for the time being, this works fine.
@@ -22,6 +26,42 @@ uint32_t BinMaterial::RGB565toRGBA8(uint16_t data) {
 	output |= (r << 3) << 24;
 	output |= (g << 2) << 16;
 	output |= (b << 3) << 8;
+
+	return output;
+}
+
+uint32_t BinMaterial::RGB5A3toRGBA8(uint16_t data) {
+	uint8_t r, g, b, a;
+
+	// No alpha bits to extract.
+	if (data & 0x8000) {
+		a = 0xFF;
+
+		r = (data & 0x7C00) >> 10;
+		g = (data & 0x03E0) >> 5;
+		b = (data & 0x001F);
+
+		r = (r << (8 - 5)) | (r >> (10 - 8));
+		g = (g << (8 - 5)) | (g >> (10 - 8));
+		b = (b << (8 - 5)) | (b >> (10 - 8));
+	}
+	// Alpha bits present.
+	else {
+		a = (data & 0x7000) >> 12;
+		r = (data & 0x0F00) >> 8;
+		g = (data & 0x00F0) >> 4;
+		b = (data & 0x000F);
+
+		a = (a << (8 - 3)) | (a << (8 - 6)) | (a >> (9 - 8));
+		r = (r << (8 - 4)) | r;
+		g = (g << (8 - 4)) | g;
+		b = (b << (8 - 4)) | b;
+	}
+
+	uint32_t output = a;
+	output |= r << 24;
+	output |= g << 16;
+	output |= b << 8;
 
 	return output;
 }
@@ -124,6 +164,71 @@ uint8_t* BinMaterial::DecodeCMPRSubBlock(bStream::CStream* stream) {
 	return data;
 }
 
+void BinMaterial::DecodeRGB565(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData) {
+	if (imageData == nullptr)
+		return;
+
+	uint32_t numBlocksW = width / 4;
+	uint32_t numBlocksH = height / 4;
+
+	// Iterate the blocks in the image
+	for (int blockY = 0; blockY < numBlocksH; blockY++) {
+		for (int blockX = 0; blockX < numBlocksW; blockX++) {
+			// Iterate the pixels in the current block
+			for (int pixelY = 0; pixelY < 4; pixelY++) {
+				for (int pixelX = 0; pixelX < 4; pixelX++) {
+					// Bounds check to ensure the pixel is within the image.
+					if ((blockX * 4 + pixelX >= width) || (blockY * 4 + pixelY >= height))
+						continue;
+
+					// RGB values for this pixel are stored in a 16-bit integer.
+					uint16_t data = stream->readUInt16();
+					uint32_t rgba8 = BinMaterial::RGB565toRGBA8(data);
+
+					uint32_t destIndex = (width * ((blockY * 4) + pixelY) + (blockX * 4) + pixelX) * 4;
+
+					imageData[destIndex] = (rgba8 & 0xFF000000) >> 24;
+					imageData[destIndex + 1] = (rgba8 & 0x00FF0000) >> 16;
+					imageData[destIndex + 2] = (rgba8 & 0x0000FF00) >> 8;
+					imageData[destIndex + 3] = rgba8 & 0x000000FF;
+				}
+			}
+		}
+	}
+}
+
+void BinMaterial::DecodeRGB5A3(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData) {
+	if (imageData == nullptr)
+		return;
+
+	uint32_t numBlocksW = width / 4;
+	uint32_t numBlocksH = height / 4;
+
+	// Iterate the blocks in the image
+	for (int blockY = 0; blockY < numBlocksH; blockY++) {
+		for (int blockX = 0; blockX < numBlocksW; blockX++) {
+			// Iterate the pixels in the current block
+			for (int pixelY = 0; pixelY < 4; pixelY++) {
+				for (int pixelX = 0; pixelX < 4; pixelX++) {
+					// Bounds check to ensure the pixel is within the image.
+					if ((blockX * 4 + pixelX >= width) || (blockY * 4 + pixelY >= height))
+						continue;
+
+					// RGB values for this pixel are stored in a 16-bit integer.
+					uint16_t data = stream->readUInt16();
+					uint32_t rgba8 = BinMaterial::RGB5A3toRGBA8(data);
+
+					uint32_t destIndex = (width * ((blockY * 4) + pixelY) + (blockX * 4) + pixelX) * 4;
+
+					imageData[destIndex] = (rgba8 & 0xFF000000) >> 24;
+					imageData[destIndex + 1] = (rgba8 & 0x00FF0000) >> 16;
+					imageData[destIndex + 2] = (rgba8 & 0x0000FF00) >> 8;
+					imageData[destIndex + 3] = rgba8 & 0x000000FF;
+				}
+			}
+		}
+	}
+}
 
 const char* default_vtx_shader_source = "#version 420\n\
     #extension GL_ARB_separate_shader_objects : enable\n\
@@ -147,14 +252,15 @@ const char* default_frg_shader_source = "#version 420\n\
     #extension GL_ARB_separate_shader_objects : enable\n\
     \
     uniform sampler2D texSampler;\n\
+    uniform vec4 binMatColor;\n\
     layout(location = 0) in vec2 fragTexCoord;\n\
     \
     layout(location = 0) out vec4 outColor;\n\
     \
     void main()\n\
     {\n\
-        vec4 baseColor = texture(texSampler, fragTexCoord);\n\
-        outColor = baseColor;//vec4(1.0, 1.0, 1.0, 1.0);\n\
+        vec4 baseColor = texture(texSampler, vec2(fragTexCoord.y, fragTexCoord.x));\n\
+        outColor = baseColor * binMatColor;//vec4(1.0, 1.0, 1.0, 1.0);\n\
         if(baseColor.a < 1.0 / 255.0) discard;\n\
     }\
 ";
@@ -168,13 +274,12 @@ struct BinVertex
 	float v;
 };
 
-std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<glm::vec3>& vertices, std::vector<glm::vec2>& texcoords, std::vector<GXAttribute>& attributes, bool nbt){
+std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<glm::vec3>& vertices, std::vector<glm::vec2>& texcoords, std::vector<GXAttribute>& attributes, bool nbt, uint32_t listSize){
     std::vector<BinVertex> vd_out;
 
     uint8_t primitiveType = stream->readUInt8(); 
-    while (primitiveType == Triangles || primitiveType == TriangleStrip || primitiveType == TriangleFan || primitiveType == Quads)
+    while (stream->tell() < listSize && (EGXPrimitiveType)primitiveType != EGXPrimitiveType::None)
     {
-
         uint16_t count = stream->readUInt16();
         std::vector<std::pair<uint16_t, uint16_t>> primVertices(count);
 
@@ -207,7 +312,10 @@ std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<gl
 
         for (auto& vtx : primVertices)
         {
-            if(vtx.first > vertices.size() || vtx.second > texcoords.size()) return vd_out;
+            if(vtx.first > vertices.size() || vtx.second > texcoords.size()){
+                std::cout << "Error Loading Model! Primitives are wrong? Vertex " << vtx.first << " out of range " << vertices.size() << " or TexCoord " << vtx.second << " out of range " << texcoords.size() << std::endl;
+                return vd_out;
+            }
         }
         
 
@@ -226,8 +334,8 @@ std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<gl
                 vtx.x = pos.x;
                 vtx.y = pos.y;
                 vtx.z = pos.z;
-                vtx.u = texcoord.y;
-                vtx.v = texcoord.x;
+                vtx.u = texcoord.x;
+                vtx.v = texcoord.y;
                 vd_out.push_back(vtx);
             }
             break;
@@ -241,8 +349,8 @@ std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<gl
                 vtx.x = pos.x;
                 vtx.y = pos.y;
                 vtx.z = pos.z;
-                vtx.u = texcoord.y;
-                vtx.v = texcoord.x;
+                vtx.u = texcoord.x;
+                vtx.v = texcoord.y;
                 vd_out.push_back(vtx);
 
                 pos = vertices.at((v % 2 != 0 ? primVertices.at(v) : primVertices.at(v - 1)).first);
@@ -250,8 +358,8 @@ std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<gl
                 vtx.x = pos.x;
                 vtx.y = pos.y;
                 vtx.z = pos.z;
-                vtx.u = texcoord.y;
-                vtx.v = texcoord.x;
+                vtx.u = texcoord.x;
+                vtx.v = texcoord.y;
                 vd_out.push_back(vtx);
 
                 pos = vertices.at((v % 2 != 0 ? primVertices.at(v - 1) : primVertices.at(v)).first);
@@ -259,8 +367,8 @@ std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<gl
                 vtx.x = pos.x;
                 vtx.y = pos.y;
                 vtx.z = pos.z;
-                vtx.u = texcoord.y;
-                vtx.v = texcoord.x;
+                vtx.u = texcoord.x;
+                vtx.v = texcoord.y;
                 vd_out.push_back(vtx);
 
             }
@@ -276,10 +384,11 @@ std::vector<BinVertex> ReadGXPrimitives(bStream::CStream* stream, std::vector<gl
     return vd_out;  
 }
 
+
 BinMesh::BinMesh(bStream::CStream* stream, uint32_t offset, std::vector<glm::vec3>& vertexData, std::vector<glm::vec2>& texcoordData){
     
     stream->skip(2);
-    uint16_t listSize = stream->readUInt16() << 5;
+    uint32_t listSize = stream->readUInt16() << 5;
     uint32_t attr = stream->readUInt32();
 
     std::vector<GXAttribute> attributes;
@@ -304,7 +413,7 @@ BinMesh::BinMesh(bStream::CStream* stream, uint32_t offset, std::vector<glm::vec
     stream->seek(offset + primitiveOffset);
     ////std::cout << "Reading Primitives at " << std::hex << stream->tell() << std::endl;
     
-    std::vector<BinVertex> buffer = ReadGXPrimitives(stream, vertexData, texcoordData, attributes, useNbt);
+    std::vector<BinVertex> buffer = ReadGXPrimitives(stream, vertexData, texcoordData, attributes, useNbt, listSize + offset + primitiveOffset);
 
     mVertexCount = buffer.size();
 
@@ -369,23 +478,29 @@ BinMaterial::BinMaterial(bStream::CStream* stream, uint32_t textureOffset){
     stream->skip(3);
     uint32_t dataOffset = stream->readUInt32() + textureOffset;
     stream->seek(dataOffset);
-    //std::cout << "Reading Texture " << textureID << " Data at " << std::hex << stream->tell() << "allocating " << w*h*4  << "bytes" << std::endl;
 
 
     uint8_t* textureData = new uint8_t[w*h*4]{};
 
-    switch (format)
-    {
-    case 0x0E:
-        BinMaterial::DecodeCMPR(stream, w, h, textureData);
-        break;
-    }
+	switch ((EGXTextureFormat)format) {
+		case EGXTextureFormat::RGB565:
+			//DecodeRGB565(stream, w, h, textureData);
+            BinMaterial::DecodeRGB565(stream, w, h, textureData);
+			break;
+		case EGXTextureFormat::RGB5A3:
+			//DecodeRGB5A3(stream, w, h, textureData);
+            BinMaterial::DecodeRGB5A3(stream, w, h, textureData);
+			break;
+		case EGXTextureFormat::CMPR:
+			BinMaterial::DecodeCMPR(stream, w, h, textureData);
+			break;
+	}
 
     glGenTextures(1, &mTexture);
     glBindTexture(GL_TEXTURE_2D, mTexture);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (wu == 2 ? GL_MIRRORED_REPEAT : GL_REPEAT));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (wv == 2 ? GL_MIRRORED_REPEAT : GL_REPEAT));
 
@@ -398,9 +513,11 @@ BinMaterial::BinMaterial(bStream::CStream* stream, uint32_t textureOffset){
 }
 
 BinSampler::BinSampler(bStream::CStream* stream){
-    stream->skip(3);
-    mAmbientColor = stream->readUInt32();
-    stream->skip(1);
+    stream->readInt16();
+    stream->readUInt8();
+    uint32_t color = stream->readUInt32();
+    mAmbientColor = glm::vec4((color & 0x000000FF) / 255.0f, (color & 0x0000FF) / 255.0f, (color & 0x00FF) / 255.0f, (color & 0xFF) / 255.0f);
+    stream->readUInt8();
     mTextureID = stream->readUInt16();
 }
 
@@ -420,8 +537,10 @@ void BinScenegraphNode::Draw(glm::mat4 localTransform, glm::mat4* instance, BinM
     glUniformMatrix4fv(glGetUniformLocation(mProgramID, "transform"), 1, 0, &(*instance * localTransform * transform)[0][0]);
     for (auto& mesh : meshes)
     {
-        if(!bin->BindMesh(mesh.first)) continue;
-        if(!bin->BindMaterial(mesh.second)) continue;
+        bin->BindMesh(mesh.first);
+        bin->BindMaterial(mesh.second);
+
+        glUniform4fv(glGetUniformLocation(mProgramID, "binMatColor"), 1, &bin->GetSampler(mesh.second)->mAmbientColor[0]);
 
         glDrawArrays(GL_TRIANGLES, 0, bin->GetMesh(mesh.first)->mVertexCount);
 
@@ -451,6 +570,7 @@ bool BinModel::BindMaterial(uint16_t id){
         mMaterials[mSamplers[id]->mTextureID]->Bind();
         return true;
     } else {
+        //std::cout << "Couldn't bind material " << mSamplers[id]->mTextureID << std::endl;
         return false;
     }
 }
@@ -470,14 +590,20 @@ BinModel::BinModel(bStream::CStream* stream){
 
     for(size_t o = 3; o < 21; o++)
     {
-        vertexCount = (uint32_t)((chunkOffsets[o] - chunkOffsets[2]) / 6);
+        vertexCount = (uint32_t)((chunkOffsets[o] - chunkOffsets[2]) / 6) + 5;
         if(chunkOffsets[o] != 0) break;
     }
 
-    uint32_t texcoordCount = (uint32_t)((chunkOffsets[10] - chunkOffsets[6]) / 8);
+    uint32_t texcoordCount = 0; //(uint32_t)((chunkOffsets[10] - chunkOffsets[6]) / 8);
+    for(size_t o = 7; o < 21; o++)
+    {
+        texcoordCount = (uint32_t)((chunkOffsets[o] - chunkOffsets[6]) / 8);
+        if(chunkOffsets[o] != 0) break;
+    }
+
     uint32_t material_count = (uint32_t)((chunkOffsets[2] - chunkOffsets[1]) / 0x14);
     
-    if(chunkOffsets[1] == 0) material_count = 0;
+    if(chunkOffsets[1] == 0) material_count = 0; //?
 
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec2> texcoords;
@@ -545,6 +671,12 @@ std::shared_ptr<BinScenegraphNode> BinModel::ParseSceneraph(bStream::CStream* st
             stream->seek(offsets[11] + 0x18 * meshIndex);
 
             mMeshes[meshIndex] = std::make_shared<BinMesh>(stream, offsets[11], vertexData, texcoordData);
+            
+            stream->seek(r);
+        }
+
+        if(mSamplers.count(matIndex) == 0){
+            size_t r = stream->tell();
 
             stream->seek(offsets[10] + 0x28 * matIndex);
 

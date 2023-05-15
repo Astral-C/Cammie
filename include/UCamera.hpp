@@ -43,8 +43,8 @@ public:
 	void UpdateSimple();
 
 	glm::vec3 GetPosition() { return mEye; }
-	glm::mat4 GetViewMatrix() { return glm::lookAt(mEye, mCenter, mUp); }
-	glm::mat4 GetProjectionMatrix() { return glm::perspective(mFovy, mAspectRatio, mNearPlane, mFarPlane); }
+	glm::mat4 GetViewMatrix() { return glm::lookAtLH(mEye, mCenter, mUp); }
+	glm::mat4 GetProjectionMatrix() { return glm::perspectiveLH(mFovy, mAspectRatio, mNearPlane, mFarPlane); }
 
 	void SetCenter(glm::vec3 v) { mCenter = v; }
 	void SetEye(glm::vec3 v) { mEye = v; }
