@@ -29,6 +29,7 @@ namespace SResUtility
 		bool mSelectRootDialogOpen;
 		
 		public:
+			bool mDragEnabled { false };
 			std::filesystem::path mRootPath;
 
 			void RenderOptionMenu();

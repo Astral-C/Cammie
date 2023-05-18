@@ -499,10 +499,10 @@ BinMaterial::BinMaterial(bStream::CStream* stream, uint32_t textureOffset){
     glGenTextures(1, &mTexture);
     glBindTexture(GL_TEXTURE_2D, mTexture);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, (wu == 2 ? GL_MIRRORED_REPEAT : GL_REPEAT));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (wv == 2 ? GL_MIRRORED_REPEAT : GL_REPEAT));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, (wu == 2 ? GL_MIRRORED_REPEAT : GL_REPEAT));
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData);
     
@@ -649,9 +649,9 @@ std::shared_ptr<BinScenegraphNode> BinModel::ParseSceneraph(bStream::CStream* st
     stream->skip(4);
     current->transform = glm::identity<glm::mat4>();
     current->transform = glm::scale(current->transform, glm::vec3(stream->readFloat(), stream->readFloat(), stream->readFloat())); 
-    current->transform = glm::rotate(current->transform, glm::radians(stream->readFloat()), glm::vec3(1,0,0));
-    current->transform = glm::rotate(current->transform, glm::radians(stream->readFloat()), glm::vec3(0,1,0));
-    current->transform = glm::rotate(current->transform, glm::radians(stream->readFloat()), glm::vec3(0,0,1));
+    glm::vec3 rotation(stream->readFloat(), stream->readFloat(), stream->readFloat());
+    glm::quat rotationQuat = glm::angleAxis(glm::radians(rotation.x), glm::vec3(1.0,0.0,0.0)) * glm::angleAxis(-glm::radians(rotation.y), glm::vec3(0.0,1.0,0.0)) * glm::angleAxis(glm::radians(rotation.z), glm::vec3(0.0,0.0,1.0));
+    current->transform *= glm::toMat4(rotationQuat);
     current->transform = glm::translate(current->transform, glm::vec3(stream->readFloat(), stream->readFloat(), stream->readFloat()));
 
     stream->skip(4*7);

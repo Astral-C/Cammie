@@ -129,6 +129,9 @@ void SResUtility::SOptions::LoadOptions(){
 
 		const char* path = ini_get(config, "settings", "root");
 		if(path != nullptr) mRootPath = std::filesystem::path(path);
+
+		const char* drag_enabled = ini_get(config, "settings", "drag_enabled");
+		if(drag_enabled != nullptr) mDragEnabled = (strncmp(drag_enabled, "true", 4) == 0);
 		ini_free(config);
 	}
 }
@@ -144,9 +147,11 @@ void SResUtility::SOptions::RenderOptionMenu(){
 			mSelectRootDialogOpen = true;
 		}
 
+		ImGui::Checkbox("Enable Keyframe Dragging (Unstable-ish)", &mDragEnabled);
+
 		if(ImGui::Button("Save")){
 			std::ofstream settingsFile(std::filesystem::current_path() / "settings.ini");
-			settingsFile << fmt::format("[settings]\nroot={0}", mRootPath.string());
+			settingsFile << fmt::format("[settings]\nroot={0}\ndrag_enabled={1}", mRootPath.string(), (mDragEnabled ? "true" : "false"));
 			settingsFile.close();
 			ImGui::CloseCurrentPopup();
 		}

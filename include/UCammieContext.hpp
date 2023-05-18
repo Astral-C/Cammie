@@ -22,11 +22,12 @@ class J3DModelInstance;
 
 class UCammieContext {
 	
-	// mRoot;
+	ETrackType mOpenTrackType { ETrackType::CMN };
+	
+	
 	CTrackCommon XPositionTrack;
 	CTrackCommon YPositionTrack;
 	CTrackCommon ZPositionTrack;
-
 
 	CTrackCommon XTargetTrack;
 	CTrackCommon YTargetTrack;
@@ -45,8 +46,6 @@ class UCammieContext {
 	USceneCamera mCamera;
 	UGrid mGrid;
 	CPointSpriteManager mBillboardManager;
-	//CGalaxyRenderer mGalaxyRenderer;
-	//std::shared_ptr<BinModel> mModel { nullptr };
 	CMapRenderer mMapRenderer;
 
 
@@ -55,10 +54,13 @@ class UCammieContext {
 	uint32_t mMainDockSpaceID;
 	uint32_t mDockNodeBottomID, mDockNodeRightID, mDockNodeBottomRightID;
 	
+	bool mUseHermite { true };
 	bool bIsDockingSetUp { false };
-	bool bIsFileDialogOpen { false };
 	bool bIsGalaxyDialogOpen { false };
-	bool bIsSaveDialogOpen { false };
+	bool bIsFileDialogCMNOpen { false };
+	bool bIsSaveDialogCMNOpen { false };
+	bool bIsFileDialogPTHOpen { false };
+	bool bIsSaveDialogPTHOpen { false };
 
 	bool mSetLights { false };
 
@@ -76,12 +78,20 @@ class UCammieContext {
 	void RenderPanels(float deltaTime);
 	void RenderMenuBar();
 
-	void OpenModelCB();
-	void SaveModelCB();
+	void OpenCMN();
+	void SaveCMN();
+
+	void OpenPTH();
+	void SavePTH();
 
 	void SetLights();
-	void LoadFromPath(std::filesystem::path filePath);
-	void SaveAnimation(std::filesystem::path savePath);
+	void LoadFromPathCMN(std::filesystem::path filePath);
+	void SaveAnimationCMN(std::filesystem::path savePath);
+
+	void LoadFromPathPTH(std::filesystem::path filePath);
+	void SaveAnimationPTH(std::filesystem::path savePath);
+
+	void ProcessEndDrag();
 
 	glm::vec3 ManipulationGizmo(glm::vec3 position);
 

@@ -85,6 +85,7 @@ void CMapRenderer::LoadMap(std::filesystem::path map_path){
 
 	for(int i = 0; i < 72; i++){
 		std::cout << "Loading room " << fmt::format("room_{:02}", i) << std::endl;
+		
 		LoadModels(map_path.stem().string(), fmt::format("room_{:02}", i));
 
 		if(mMapRooms.contains(i)){

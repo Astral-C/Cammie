@@ -24,6 +24,10 @@
 #include "fmt/core.h"
 #include "ResUtil.hpp"
 
+static bool wasDraggingFrame = false;
+static bool dragEnded = false;
+
+const char* keyframe_types[4] = { "Static", "Normal", "Symmetric Slope", "Non-Symmetric Slope"};
 
 bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSelection){
 	bool selected = false;
@@ -34,6 +38,13 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 			if(ImGui::IsNeoKeyframeSelected()){
 				*keyframeSelection = key;
 				selected = true;
+
+				if(ImGui::NeoIsDraggingSelection()){
+					wasDraggingFrame = true;
+				} else if(!ImGui::NeoIsDraggingSelection() && wasDraggingFrame){
+					wasDraggingFrame = false;
+					dragEnded = true;
+				}
 			}
 		}
 
@@ -70,11 +81,15 @@ float hermiteInterpolation(float point0, float tangent0, float point1, float tan
     return h1 * point0 + h2 * point1 + h3 * tangent0 + h4 * tangent1;
 }
 
-inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
+inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame, bool hermiteInterp){
 	if(track.mKeys.size() == 0) return 0.0f;
 	if(track.mKeys.size() == 1) {
 		if(currentFrame > track.mKeys[0]) return track.mFrames[track.mKeys[0]].value;
-		return hermiteInterpolation(0.0f, 1.0f, track.mFrames[track.mKeys[0]].value, track.mFrames[track.mKeys[0]].inslope, currentFrame / track.mFrames[track.mKeys[0]].frame);
+		if(hermiteInterp){
+			return hermiteInterpolation(0.0f, 1.0f, track.mFrames[track.mKeys[0]].value, track.mFrames[track.mKeys[0]].inslope, currentFrame / track.mFrames[track.mKeys[0]].frame);
+		} else {
+			return glm::mix(0.0f, track.mFrames[track.mKeys[0]].value, currentFrame / track.mFrames[track.mKeys[0]].frame);			
+		}
 	}
 	//I don't know how this works when there is only one keyframe. I don't want to know how this works with only one keyframe. But it works when there is only one keyframe.
 	CKeyframeCommon nextKeyframe, prevKeyframe;
@@ -90,8 +105,11 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 
 	if(!hasNext) return prevKeyframe.value;
 
-	return hermiteInterpolation(prevKeyframe.value, prevKeyframe.outslope, nextKeyframe.value, nextKeyframe.inslope, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
-	//glm::smoothstep(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	if(hermiteInterp){
+		return hermiteInterpolation(prevKeyframe.value, (track.mElementCount == 4 ? prevKeyframe.outslope : (track.mElementCount == 3 ? prevKeyframe.inslope : 1.0f)), nextKeyframe.value, nextKeyframe.inslope, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	} else {
+		return glm::mix(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	}
 }
 
 inline void AddUpdateKeyframe(float value, float delta, uint32_t currentFrame, CTrackCommon* track){
@@ -102,6 +120,33 @@ inline void AddUpdateKeyframe(float value, float delta, uint32_t currentFrame, C
 			track->AddKeyframe(currentFrame, value + delta);
 		}
 	}
+}
+
+void UCammieContext::ProcessEndDrag(){
+	std::vector<CTrackCommon*> tracks = {&XPositionTrack, &YPositionTrack, &ZPositionTrack, &XTargetTrack, &YTargetTrack, &ZTargetTrack, &FovYTrack, &TwistTrack, &ZNearTrack, &ZFarTrack};
+	std::cout << "Stopped Dragging Keyframe, Updating Keyframe Positions..." << std::endl;
+	
+	for(auto track : tracks){
+		std::sort(track->mKeys.begin(), track->mKeys.end());
+		for(auto key : track->mKeys){
+			if(track->mFrames.find(key) == track->mFrames.end()){ // we couldn't kind the framedata for this keyframe
+				std::cout << "Couldn't find framedata for keyframe " << key << std::endl;
+				for(auto [unusedKey, frame] : track->mFrames){
+					// find framedata that no longer has corresponding keyframe
+					if(std::find(track->mKeys.begin(), track->mKeys.end(), unusedKey) == track->mKeys.end()){
+						std::cout << "Couldn't find keyframe for framedata w/ keyframe " << unusedKey << std::endl;
+						track->mFrames.insert({key, frame});
+						track->mFrames.erase(unusedKey);
+						break;
+					}
+				}
+			}
+		}
+
+		//keyframes must be sorted!
+	}
+
+	dragEnded = false;
 }
 
 glm::vec3 UCammieContext::ManipulationGizmo(glm::vec3 position){
@@ -116,17 +161,22 @@ UCammieContext::UCammieContext(){
 	BinModel::InitShaders();
 	Options.LoadOptions();
 	mGrid.Init();
-	mBillboardManager.Init(128, 2);
+	mBillboardManager.Init(128, 3);
 	mBillboardManager.SetBillboardTexture(std::filesystem::current_path() / "res/camera.png", 0);
 	mBillboardManager.SetBillboardTexture(std::filesystem::current_path() / "res/target.png", 1);
+	mBillboardManager.SetBillboardTexture(std::filesystem::current_path() / "res/character.png", 2);
 
 	mBillboardManager.mBillboards.push_back(CPointSprite());
 	mBillboardManager.mBillboards.push_back(CPointSprite());
+	mBillboardManager.mBillboards.push_back(CPointSprite());
 
+	// 51200
 	mBillboardManager.mBillboards[0].Texture = 0;
-	mBillboardManager.mBillboards[0].SpriteSize = 51200;
+	mBillboardManager.mBillboards[0].SpriteSize = 0;
 	mBillboardManager.mBillboards[1].Texture = 1;
-	mBillboardManager.mBillboards[1].SpriteSize = 51200;
+	mBillboardManager.mBillboards[1].SpriteSize = 0;
+	mBillboardManager.mBillboards[2].Texture = 2;
+	mBillboardManager.mBillboards[2].SpriteSize = 0;
 
 	GCResourceManager.Init();
 
@@ -201,11 +251,16 @@ void UCammieContext::Render(float deltaTime) {
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 	
 	ImGui::Begin("mainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-		ImGui::Text(fmt::format("Camera Animation [{0}/{1}]", mCurrentFrame, mEndFrame).data());
+		ImGui::Text(fmt::format("{2} Animation [{0}/{1}]", mCurrentFrame, mEndFrame, mOpenTrackType == ETrackType::CMN ? "Camera" : "Path").data());
 		ImGui::SameLine();
-		ImGui::Checkbox("Camera Sight", &mViewCamera);
+		if(mOpenTrackType == ETrackType::CMN){
+			ImGui::Checkbox("Camera Sight", &mViewCamera);
+			ImGui::SameLine();
+		}
+		ImGui::Checkbox("Use Hermite Interp", &mUseHermite);
 		ImGui::SameLine();
-		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; mCamera.ResetView(); }
+
+		if(ImGui::Button("Play")){ mPlaying = true; mCurrentFrame = 0; if(mOpenTrackType == ETrackType::CMN) mCamera.ResetView(); }
 		if(mPlaying){ ImGui::SameLine(); if(ImGui::Button("Stop")) mPlaying = false; }
 		if(!mShowZones){ ImGui::SameLine(); if(ImGui::Button("Rooms")) mShowZones = true; }
 		ImGui::SameLine(ImGui::GetWindowWidth() - 50);
@@ -213,37 +268,43 @@ void UCammieContext::Render(float deltaTime) {
 		ImGui::Separator();
 
 		//This segment of code is insanely messy
+		ImGui::BeginNeoSequencer("Sequencer", &mCurrentFrame, &mStartFrame, &mEndFrame, {0, 0}, mPlaying ? 0 : (ImGuiNeoSequencerFlags_EnableSelection | (Options.mDragEnabled ? ImGuiNeoSequencerFlags_Selection_EnableDragging : 0) | ImGuiNeoSequencerFlags_Selection_EnableDeletion));
+			if(mOpenTrackType == ETrackType::CMN){
+				if(ImGui::BeginNeoGroup("Position", &mPositionOpen)){
+					if(RenderTimelineTrack("X", &XPositionTrack, &selectedKeyframe)) selectedTrack = &XPositionTrack;
+					if(RenderTimelineTrack("Y", &YPositionTrack, &selectedKeyframe)) selectedTrack = &YPositionTrack;
+					if(RenderTimelineTrack("Z", &ZPositionTrack, &selectedKeyframe)) selectedTrack = &ZPositionTrack;
+					ImGui::EndNeoGroup();
+				}
+				if(ImGui::BeginNeoGroup("Target", &mTargetOpen)){
+					if(RenderTimelineTrack("X", &XTargetTrack, &selectedKeyframe)) selectedTrack = &XTargetTrack;
+					if(RenderTimelineTrack("Y", &YTargetTrack, &selectedKeyframe)) selectedTrack = &YTargetTrack;
+					if(RenderTimelineTrack("Z", &ZTargetTrack, &selectedKeyframe)) selectedTrack = &ZTargetTrack;
+					ImGui::EndNeoGroup();
+				}
 
-		ImGui::BeginNeoSequencer("Sequencer", &mCurrentFrame, &mStartFrame, &mEndFrame, {0, 0}, mPlaying ? 0 : (ImGuiNeoSequencerFlags_EnableSelection | ImGuiNeoSequencerFlags_Selection_EnableDeletion));
-			if(ImGui::BeginNeoGroup("Position", &mPositionOpen)){
-				if(RenderTimelineTrack("X", &XPositionTrack, &selectedKeyframe)) selectedTrack = &XPositionTrack;
-				std::cout << "Selected keyframe CX " << selectedKeyframe << std::endl;
-				if(RenderTimelineTrack("Y", &YPositionTrack, &selectedKeyframe)) selectedTrack = &YPositionTrack;
-				std::cout << "Selected keyframe CY " << selectedKeyframe << std::endl;
-				if(RenderTimelineTrack("Z", &ZPositionTrack, &selectedKeyframe)) selectedTrack = &ZPositionTrack;
-				std::cout << "Selected keyframe CZ " << selectedKeyframe << std::endl;
-				ImGui::EndNeoGroup();
+				if(RenderTimelineTrack("Fov", &FovYTrack, &selectedKeyframe)) selectedTrack = &FovYTrack;
+				if(RenderTimelineTrack("Twist", &TwistTrack, &selectedKeyframe)) selectedTrack = &TwistTrack;
+
+				if(RenderTimelineTrack("Z Near", &ZNearTrack, &selectedKeyframe)) selectedTrack = &ZNearTrack;
+				if(RenderTimelineTrack("Z Far", &ZFarTrack, &selectedKeyframe)) selectedTrack = &ZFarTrack;
+
+				if(Options.mDragEnabled && dragEnded) ProcessEndDrag();
+
+			} else if (mOpenTrackType == ETrackType::PTH){
+				if(ImGui::BeginNeoGroup("Position", &mPositionOpen)){
+					if(RenderTimelineTrack("X", &XPositionTrack, &selectedKeyframe)) selectedTrack = &XPositionTrack;
+					if(RenderTimelineTrack("Y", &YPositionTrack, &selectedKeyframe)) selectedTrack = &YPositionTrack;
+					if(RenderTimelineTrack("Z", &ZPositionTrack, &selectedKeyframe)) selectedTrack = &ZPositionTrack;
+					ImGui::EndNeoGroup();
+				}
+				if(ImGui::BeginNeoGroup("Unknown", &mTargetOpen)){
+					if(RenderTimelineTrack("X", &XTargetTrack, &selectedKeyframe)) selectedTrack = &XTargetTrack;
+					if(RenderTimelineTrack("Y", &YTargetTrack, &selectedKeyframe)) selectedTrack = &YTargetTrack;
+					if(RenderTimelineTrack("Z", &ZTargetTrack, &selectedKeyframe)) selectedTrack = &ZTargetTrack;
+					ImGui::EndNeoGroup();
+				}
 			}
-			if(ImGui::BeginNeoGroup("Target", &mTargetOpen)){
-				if(RenderTimelineTrack("X", &XTargetTrack, &selectedKeyframe)) selectedTrack = &XTargetTrack;
-				std::cout << "Selected keyframe TX " << selectedKeyframe << std::endl;
-				if(RenderTimelineTrack("Y", &YTargetTrack, &selectedKeyframe)) selectedTrack = &YTargetTrack;
-				std::cout << "Selected keyframe TY " << selectedKeyframe << std::endl;
-				if(RenderTimelineTrack("Z", &ZTargetTrack, &selectedKeyframe)) selectedTrack = &ZTargetTrack;
-				std::cout << "Selected keyframe TZ " << selectedKeyframe << std::endl;
-				ImGui::EndNeoGroup();
-			}
-
-			if(RenderTimelineTrack("Fov", &FovYTrack, &selectedKeyframe)) selectedTrack = &FovYTrack;
-			std::cout << "Selected keyframe Fov " << selectedKeyframe << std::endl;
-			if(RenderTimelineTrack("Twist", &TwistTrack, &selectedKeyframe)) selectedTrack = &TwistTrack;
-			std::cout << "Selected keyframe Unk " << selectedKeyframe << std::endl;
-
-			if(RenderTimelineTrack("Z Near", &ZNearTrack, &selectedKeyframe)) selectedTrack = &ZNearTrack;
-			std::cout << "Selected keyframe ZNear " << selectedKeyframe << std::endl;
-			if(RenderTimelineTrack("Z Far", &ZFarTrack, &selectedKeyframe)) selectedTrack = &ZFarTrack;
-			std::cout << "Selected keyframe ZFar (" << (&ZFarTrack == selectedTrack) << ") " << selectedKeyframe << std::endl;
-
 		ImGui::EndNeoSequencer();
 
 	ImGui::End();
@@ -251,23 +312,38 @@ void UCammieContext::Render(float deltaTime) {
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 
 	ImGui::Begin("detailWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
-		ImGui::Text("Selected Keyframe");
+		bool keyframeIsSelected = (selectedKeyframe != -1 && selectedTrack != nullptr && selectedTrack->mFrames.count(selectedKeyframe) != 0);
+		bool showTrackSettings = ImGui::TreeNode("Track Settings");
 		ImGui::Separator();
-		if(selectedKeyframe != -1 && selectedTrack != nullptr && selectedTrack->mFrames.count(selectedKeyframe) != 0){
-			ImGui::InputFloat("Value", &selectedTrack->mFrames.at(selectedKeyframe).value);
+		if(showTrackSettings){
+			if(keyframeIsSelected){
+				int elementCount = selectedTrack->mElementCount;
+				for (size_t i = 1; i <= 4; i++){
+					ImGui::RadioButton(fmt::format("{0}", keyframe_types[i-1]).c_str(), &elementCount, i);
+				}
+				selectedTrack->mElementCount = elementCount;
+			}
+			ImGui::TreePop();
+		}
 
-			if(selectedTrack->mType == ETrackType::CMN){
-				if(selectedTrack->mSymmetricSlope){
+		bool showKeyframeSettings = ImGui::TreeNode("Selected Keyframe");
+		ImGui::Separator();
+		if(showKeyframeSettings){
+			if(keyframeIsSelected){
+				ImGui::InputFloat("Value", &selectedTrack->mFrames.at(selectedKeyframe).value);
+
+				if(selectedTrack->mElementCount == 3){
 					ImGui::InputFloat("Slope", &selectedTrack->mFrames.at(selectedKeyframe).inslope);
-				} else {
+				} else if(selectedTrack->mElementCount == 4) {
 					ImGui::InputFloat("In Slope", &selectedTrack->mFrames.at(selectedKeyframe).inslope);
 					ImGui::InputFloat("Out Slope", &selectedTrack->mFrames.at(selectedKeyframe).outslope);
-	            }
-            }
-			if(ImGui::Button("Set Camera to Keyframe")){
-				mUpdateCameraPosition = true;
-				mCurrentFrame = selectedKeyframe;
+				}
+				if(mOpenTrackType == ETrackType::CMN && ImGui::Button("Set Camera to Keyframe")){
+					mUpdateCameraPosition = true;
+					mCurrentFrame = selectedKeyframe;
+				}
 			}
+			ImGui::TreePop();
 		}
 	ImGui::End();
 
@@ -301,33 +377,34 @@ void UCammieContext::Render(float deltaTime) {
 	glm::vec3 eyePos;// = mCamera.GetEye();
 	glm::vec3 centerPos;// = mCamera.GetCenter();
 
-	eyePos.x = UpdateCameraAnimationTrack(XPositionTrack, mCurrentFrame);
-	eyePos.y = UpdateCameraAnimationTrack(YPositionTrack, mCurrentFrame);
-	eyePos.z = UpdateCameraAnimationTrack(ZPositionTrack, mCurrentFrame);
+	eyePos.x = UpdateCameraAnimationTrack(XPositionTrack, mCurrentFrame, mUseHermite);
+	eyePos.y = UpdateCameraAnimationTrack(YPositionTrack, mCurrentFrame, mUseHermite);
+	eyePos.z = UpdateCameraAnimationTrack(ZPositionTrack, mCurrentFrame, mUseHermite);
 
-	centerPos.x = UpdateCameraAnimationTrack(XTargetTrack, mCurrentFrame);
-	centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame);
-	centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame);
+	centerPos.x = UpdateCameraAnimationTrack(XTargetTrack, mCurrentFrame, mUseHermite);
+	centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame, mUseHermite);
+	centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame, mUseHermite);
 
 	//TODO Add way to do this for fov/twist
 
-	mBillboardManager.mBillboards[1].Position = centerPos;
 	mBillboardManager.mBillboards[0].Position = eyePos;
+	mBillboardManager.mBillboards[1].Position = centerPos;
+	mBillboardManager.mBillboards[2].Position = eyePos;
 
-	if((mPlaying && (mCurrentFrame != mEndFrame)) || mUpdateCameraPosition){
-		if(mViewCamera){
-			mCamera.mFovy = glm::radians(UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame));
+	if((mPlaying && (mCurrentFrame != mEndFrame)) || (mOpenTrackType == ETrackType::CMN && mUpdateCameraPosition)){
+		if(mOpenTrackType == ETrackType::CMN && mViewCamera){
+			mCamera.mFovy = glm::radians(UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame, mUseHermite));
 
 			//mCamera.mTwist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
 
-			mCamera.mFarPlane = UpdateCameraAnimationTrack(ZFarTrack, mCurrentFrame);
-			mCamera.mNearPlane = UpdateCameraAnimationTrack(ZNearTrack, mCurrentFrame);
+			mCamera.mFarPlane = UpdateCameraAnimationTrack(ZFarTrack, mCurrentFrame, mUseHermite);
+			mCamera.mNearPlane = UpdateCameraAnimationTrack(ZNearTrack, mCurrentFrame, mUseHermite);
 
 			mCamera.SetCenter(centerPos);
 			mCamera.SetEye(eyePos);
 		}
 
-		if(!mUpdateCameraPosition) mCurrentFrame++;
+		if(!(mOpenTrackType == ETrackType::CMN && mUpdateCameraPosition)) mCurrentFrame++;
 		mUpdateCameraPosition = false;
 	} else if(mPlaying && mCurrentFrame == mEndFrame){
 		mPlaying = false;
@@ -365,15 +442,21 @@ void UCammieContext::RenderMenuBar() {
 	ImGui::BeginMainMenuBar();
 
 	if (ImGui::BeginMenu("File")) {
-		if (ImGui::MenuItem("Open...")) {
-			OpenModelCB();
+		if (ImGui::MenuItem("Open CMN...")) {
+			OpenCMN();
+		}
+		if (ImGui::MenuItem("Save CMN...")) {
+			SaveCMN();
+		}
+		if (ImGui::MenuItem("Open PTH...")) {
+			OpenPTH();
+		}
+		if (ImGui::MenuItem("Save PTH...")) {
+			SavePTH();
 		}
 		if (ImGui::MenuItem("Open Map...")) {
 			//TODO: Open zone..
 			bIsGalaxyDialogOpen = true;
-		}
-		if (ImGui::MenuItem("Save...")) {
-			SaveModelCB();
 		}
 
 		ImGui::Separator();
@@ -393,29 +476,87 @@ void UCammieContext::RenderMenuBar() {
 
 	ImGui::EndMainMenuBar();
 
-	if (bIsFileDialogOpen) {
-		ImGuiFileDialog::Instance()->OpenDialog("OpenFileDialog", "Choose Camera File", "Camera Animation (*.cmn){.cmn}", ".");
+	if (bIsFileDialogCMNOpen) {
+		ImGuiFileDialog::Instance()->OpenDialog("OpenFileDialogCMN", "Choose Camera File", "Camera Animation (*.cmn){.cmn}", ".");
+	}
+	if (bIsSaveDialogCMNOpen) {
+		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialogCMN", "Save Camera File", "Camera Animation (*.cmn){.cmn}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
+	}
+	if (bIsFileDialogPTHOpen) {
+		ImGuiFileDialog::Instance()->OpenDialog("OpenFileDialogPTH", "Choose Path File", "Path Animation (*.pth){.pth}", ".");
+	}
+	if (bIsSaveDialogPTHOpen) {
+		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialogPTH", "Save Path File", "Path Animation (*.pth){.pth}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
 	}
 	if (bIsGalaxyDialogOpen){
 		//TODO: make this ensure the selected root is a galaxy/2 root!
 		ImGuiFileDialog::Instance()->OpenDialog("OpenMapDialog", "Open Map Archive", "Compressed RARC Archive (*.szp){.szp}", (Options.mRootPath / "files" / "Map" / ".").string());
 	}
-	if (bIsSaveDialogOpen) {
-		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Save Camera File", "Camera Animation (*.cmn){.cmn}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
-	}
 
-	if (ImGuiFileDialog::Instance()->Display("OpenFileDialog")) {
+	if (ImGuiFileDialog::Instance()->Display("OpenFileDialogCMN")) {
 		if (ImGuiFileDialog::Instance()->IsOk()) {
 			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
 
 			try {
-				LoadFromPath(FilePath);
+				LoadFromPathCMN(FilePath);
 			}
 			catch (std::exception e) {
 				std::cout << "Failed to load camera file " << FilePath << "! Exception: " << e.what() << "\n";
 			}
 
-			bIsFileDialogOpen = false;
+			bIsFileDialogCMNOpen = false;
+		}
+
+		ImGuiFileDialog::Instance()->Close();
+	}
+
+	if (ImGuiFileDialog::Instance()->Display("SaveFileDialogCMN")) {
+		if (ImGuiFileDialog::Instance()->IsOk()) {
+			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
+
+			try {
+				//TODO: Write camera file
+				SaveAnimationCMN(FilePath);
+			}
+			catch (std::exception e) {
+				std::cout << "Failed to save model to " << FilePath << "! Exception: " << e.what() << "\n";
+			}
+
+			bIsSaveDialogCMNOpen = false;
+		}
+
+		ImGuiFileDialog::Instance()->Close();
+	}
+
+	if (ImGuiFileDialog::Instance()->Display("OpenFileDialogPTH")) {
+		if (ImGuiFileDialog::Instance()->IsOk()) {
+			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
+
+			try {
+				LoadFromPathPTH(FilePath);
+			}
+			catch (std::exception e) {
+				std::cout << "Failed to load path file " << FilePath << "! Exception: " << e.what() << "\n";
+			}
+
+			bIsFileDialogPTHOpen = false;
+		}
+
+		ImGuiFileDialog::Instance()->Close();
+	}
+
+	if (ImGuiFileDialog::Instance()->Display("SaveFileDialogPTH")) {
+		if (ImGuiFileDialog::Instance()->IsOk()) {
+			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
+
+			try {
+				SaveAnimationPTH(FilePath);
+			}
+			catch (std::exception e) {
+				std::cout << "Failed to save path to " << FilePath << "! Exception: " << e.what() << "\n";
+			}
+
+			bIsSaveDialogPTHOpen = false;
 		}
 
 		ImGuiFileDialog::Instance()->Close();
@@ -426,9 +567,6 @@ void UCammieContext::RenderMenuBar() {
 			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
 
 			try {
-				//mGalaxyRenderer.LoadGalaxy(FilePath, isGalaxy2);
-				//bStream::CFileStream file(FilePath, bStream::Endianess::Big, bStream::OpenMode::In);
-				//mModel = std::make_shared<BinModel>(&file);
 				mMapRenderer.LoadMap(FilePath);
 			}
 			catch (std::exception e) {
@@ -436,25 +574,6 @@ void UCammieContext::RenderMenuBar() {
 			}
 
 			bIsGalaxyDialogOpen = false;
-		}
-
-		ImGuiFileDialog::Instance()->Close();
-	}
-	
-
-	if (ImGuiFileDialog::Instance()->Display("SaveFileDialog")) {
-		if (ImGuiFileDialog::Instance()->IsOk()) {
-			std::string FilePath = ImGuiFileDialog::Instance()->GetFilePathName();
-
-			try {
-				//TODO: Write camera file
-				SaveAnimation(FilePath);
-			}
-			catch (std::exception e) {
-				std::cout << "Failed to save model to " << FilePath << "! Exception: " << e.what() << "\n";
-			}
-
-			bIsSaveDialogOpen = false;
 		}
 
 		ImGuiFileDialog::Instance()->Close();
@@ -467,19 +586,35 @@ void UCammieContext::RenderMenuBar() {
 	Options.RenderOptionMenu();
 }
 
-void UCammieContext::OpenModelCB() {
-	bIsFileDialogOpen = true;
+void UCammieContext::OpenCMN() {
+	bIsFileDialogCMNOpen = true;
+	mBillboardManager.mBillboards[0].SpriteSize = 51200;
+	mBillboardManager.mBillboards[1].SpriteSize = 51200;
+	mBillboardManager.mBillboards[2].SpriteSize = 0;
+	mOpenTrackType = ETrackType::CMN;
 }
 
-void UCammieContext::SaveModelCB() {
-	bIsSaveDialogOpen = true;
+void UCammieContext::SaveCMN() {
+	bIsSaveDialogCMNOpen = true;
+}
+
+void UCammieContext::OpenPTH() {
+	bIsFileDialogPTHOpen = true;
+	mBillboardManager.mBillboards[0].SpriteSize = 0;
+	mBillboardManager.mBillboards[1].SpriteSize = 0;
+	mBillboardManager.mBillboards[2].SpriteSize = 102400;
+	mOpenTrackType = ETrackType::PTH;
+}
+
+void UCammieContext::SavePTH() {
+	bIsSaveDialogPTHOpen = true;
 }
 
 void UCammieContext::SetLights() {
 
 }
 
-void UCammieContext::SaveAnimation(std::filesystem::path savePath){
+void UCammieContext::SaveAnimationCMN(std::filesystem::path savePath){
 	bStream::CFileStream camn(savePath.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
 	// Write header
@@ -513,7 +648,7 @@ void UCammieContext::SaveAnimation(std::filesystem::path savePath){
 
 }
 
-void UCammieContext::LoadFromPath(std::filesystem::path filePath) {
+void UCammieContext::LoadFromPathCMN(std::filesystem::path filePath) {
 	//TODO: Make game a setting
 
 	XPositionTrack.mKeys.clear();
@@ -569,5 +704,98 @@ void UCammieContext::LoadFromPath(std::filesystem::path filePath) {
     
 	camn.seek(0x40);
 	UnknownValue = camn.readFloat();
+
+}
+
+void UCammieContext::SaveAnimationPTH(std::filesystem::path savePath){
+	bStream::CFileStream camn(savePath.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
+
+	// Write header
+
+	camn.writeUInt16(mEndFrame);
+	camn.writeUInt16(0); //padding
+
+	ETrackType type = ETrackType::PTH;
+
+	std::vector<float> FrameData;
+	std::vector<float> UnknownData;
+
+	ZPositionTrack.WriteTrack(&camn, FrameData, type);
+	YPositionTrack.WriteTrack(&camn, FrameData, type);
+	XPositionTrack.WriteTrack(&camn, FrameData, type);
+
+	ZTargetTrack.WriteTrack(&camn, UnknownData, type);
+	YTargetTrack.WriteTrack(&camn, UnknownData, type);
+	XTargetTrack.WriteTrack(&camn, UnknownData, type);
+
+	size_t floatOffset = camn.tell() + 8;
+
+	camn.writeUInt32(floatOffset);
+	camn.writeUInt32(floatOffset + (4 * FrameData.size()));
+
+	for(auto& flt : FrameData){
+		camn.writeFloat(flt);
+    }
+
+	for(auto& flt : UnknownData){
+		camn.writeFloat(flt);
+    }
+
+}
+
+void UCammieContext::LoadFromPathPTH(std::filesystem::path filePath) {
+	//TODO: Make game a setting
+
+	XPositionTrack.mKeys.clear();
+	XPositionTrack.mFrames.clear();
+
+	YPositionTrack.mKeys.clear();
+	YPositionTrack.mFrames.clear();
+
+	ZPositionTrack.mKeys.clear();
+	ZPositionTrack.mFrames.clear();
+
+
+	XTargetTrack.mKeys.clear();
+	XTargetTrack.mFrames.clear();
+
+	YTargetTrack.mKeys.clear();
+	YTargetTrack.mFrames.clear();
+
+	ZTargetTrack.mKeys.clear();
+	ZTargetTrack.mFrames.clear();
+
+	FovYTrack.mKeys.clear();
+	FovYTrack.mFrames.clear();
+
+	TwistTrack.mKeys.clear();
+	TwistTrack.mFrames.clear();
+
+	ZNearTrack.mKeys.clear();
+	ZNearTrack.mFrames.clear();
+
+	ZFarTrack.mKeys.clear();
+	ZFarTrack.mFrames.clear();
+
+	bStream::CFileStream camn(filePath.string(), bStream::Endianess::Big, bStream::OpenMode::In);
+
+	mEndFrame = camn.readUInt16();
+	camn.skip(2);
+
+	camn.seek(0x28);
+	uint32_t keyframeOffset = camn.readUInt32();
+	uint32_t unknownOffset = camn.readUInt32();
+
+	camn.seek(0x04);
+
+	ZPositionTrack.LoadTrack(&camn, keyframeOffset, ETrackType::PTH);
+	YPositionTrack.LoadTrack(&camn, keyframeOffset, ETrackType::PTH);
+	XPositionTrack.LoadTrack(&camn, keyframeOffset, ETrackType::PTH);
+
+	if(unknownOffset != 0){
+		ZTargetTrack.LoadTrack(&camn, unknownOffset, ETrackType::PTH);
+		YTargetTrack.LoadTrack(&camn, unknownOffset, ETrackType::PTH);
+		XTargetTrack.LoadTrack(&camn, unknownOffset, ETrackType::PTH);
+	}
 
 }

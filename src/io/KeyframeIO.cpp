@@ -39,7 +39,7 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
     uint16_t beginIndex = stream->readUInt16();
     mElementCount = stream->readUInt16();
 
-    if(mType == ETrackType::CMN || mType == ETrackType::PTH){
+    if(mType != ETrackType::ANM){
         mSymmetricSlope = (mElementCount == 3);
     } else {
         mSymmetricSlope = (mElementCount == 0x80);
