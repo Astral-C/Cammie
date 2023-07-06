@@ -59,9 +59,22 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 	return selected;
 }
 
+float hermiteInterpolation(float point0, float tangent0, float point1, float tangent1, float t) {
+    float t2 = t * t;
+    float t3 = t2 * t;
+    float h1 = 2 * t3 - 3 * t2 + 1;
+    float h2 = -2 * t3 + 3 * t2;
+    float h3 = t3 - 2 * t2 + t;
+    float h4 = t3 - t2;
+
+    return h1 * point0 + h2 * point1 + h3 * tangent0 + h4 * tangent1;
+}
+
+//TODO: proper interpolation
 inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 	if(track.mKeys.size() == 0) return 0.0f;
-	//I don't know how this works when there is only one keyframe. I don't want to know how this works with only one keyframe. But it works when there is only one keyframe.
+	if(track.mKeys.size() == 1) return track.mFrames.at(track.mKeys.at(0)).value;
+
 	CKeyframeCommon nextKeyframe, prevKeyframe;
 	for(auto keyframe : track.mKeys){
 		if(currentFrame >= keyframe) prevKeyframe = track.mFrames[keyframe];

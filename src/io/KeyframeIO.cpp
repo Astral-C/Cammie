@@ -13,15 +13,19 @@ void CTrackCommon::WriteTrack(bStream::CStream* stream, std::vector<float>& fram
 		stream->writeInt32(frameDataBuffer.size());
     }
 
-	for (size_t frame = 0; frame < mKeys.size(); frame++){
-		auto framedata = mFrames.at(mKeys.at(frame));
-		frameDataBuffer.push_back(framedata.frame);
-		frameDataBuffer.push_back(framedata.value);\
-		if(type == ETrackType::CKAN){
-			frameDataBuffer.push_back(framedata.inslope);
-			if(mSymmetricSlope != 0) frameDataBuffer.push_back(framedata.outslope);
-		}
-	}
+    if(mKeys.size() == 1){
+        frameDataBuffer.push_back(mFrames.at(mKeys.at(0)).value);
+    } else {
+        for (size_t frame = 0; frame < mKeys.size(); frame++){
+            CKeyframeCommon framedata = mFrames.at(mKeys.at(frame));
+            frameDataBuffer.push_back(framedata.frame);
+            frameDataBuffer.push_back(framedata.value);
+            if(type == ETrackType::CKAN){
+                frameDataBuffer.push_back(framedata.inslope);
+                if(mSymmetricSlope != 0) frameDataBuffer.push_back(framedata.outslope);
+            }
+        }
+    }
 }
 
 void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffset, ETrackType type)
@@ -43,14 +47,22 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
     for (size_t frame = 0; frame < keyCount; frame++)
     {
         
-        CKeyframeCommon keyframe;
+        CKeyframeCommon keyframe {0};
+        
+        if(keyCount == 1){
+            keyframe.value = stream->readFloat();
+        } else {
+            keyframe.frame = stream->readFloat();
+            keyframe.value = stream->readFloat();
 
-        keyframe.frame = stream->readFloat();
-        keyframe.value = stream->readFloat();
-
-        if(mType == ETrackType::CKAN){
-            keyframe.inslope = stream->readFloat();
-            if(slopeFlags != 0) keyframe.outslope = stream->readFloat();
+            if(mType == ETrackType::CKAN){
+                keyframe.inslope = stream->readFloat();
+                if(slopeFlags != 0){
+                    keyframe.outslope = stream->readFloat();
+                } else {
+                    keyframe.outslope = keyframe.inslope;
+                }
+            }
         }
         
         mFrames.insert(std::make_pair((uint32_t)keyframe.frame, keyframe));
