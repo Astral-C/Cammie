@@ -76,16 +76,25 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 	if(track.mKeys.size() == 1) return track.mFrames.at(track.mKeys.at(0)).value;
 
 	CKeyframeCommon nextKeyframe, prevKeyframe;
+	bool hasNext = false;
 	for(auto keyframe : track.mKeys){
 		if(currentFrame >= keyframe) prevKeyframe = track.mFrames[keyframe];
 		if(currentFrame < keyframe) {
 			nextKeyframe = track.mFrames[keyframe];
+			hasNext = true;
 			break;
 		}
 	}
 
+	if(!hasNext) return prevKeyframe.value;
+
+	//if(track->mType == ETrackType::CKAN){
+	//	return hermiteInterpolation(prevKeyframe.value, prevKeyframe.outslope, nextKeyframe.value, nextKeyframe.inslope, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	//} else {
 	return glm::mix(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	//}
 }
+
 
 inline void AddUpdateKeyframe(float value, float delta, uint32_t currentFrame, CTrackCommon* track){
 	if(delta != 0.0f){
@@ -131,10 +140,22 @@ UCammieContext::UCammieContext(){
 
 bool UCammieContext::Update(float deltaTime) {
 	
-	if(!(mPlaying && mViewCamera)) mCamera.Update(deltaTime);
+	if(!(mPlaying && mViewCamera)){
+		mCamera.Update(deltaTime);
+	} else {
+		mCamera.UpdateSimple();
+	}
 
 	if(ImGui::IsKeyPressed(ImGuiKey_Space)){
-		// insert keyframe at current cam pos
+		if(ImGui::IsKeyDown(ImGuiKey_LeftShift)){
+			if(!TwistTrack.mFrames.contains(mCurrentFrame)){
+				TwistTrack.AddKeyframe(mCurrentFrame, mCamera.mTwist);
+			}
+        } else {
+			if(!FovYTrack.mFrames.contains(mCurrentFrame)){
+				FovYTrack.AddKeyframe(mCurrentFrame, mCamera.mFovy);
+			}
+		}
     }
 
 	return true;
@@ -268,8 +289,6 @@ void UCammieContext::Render(float deltaTime) {
 	centerPos.y = UpdateCameraAnimationTrack(YTargetTrack, mCurrentFrame);
 	centerPos.z = UpdateCameraAnimationTrack(ZTargetTrack, mCurrentFrame);
 
-	float twist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
-
 	//TODO Add way to do this for fov/twist
 
 	mBillboardManager.mBillboards[1].Position = centerPos;
@@ -277,7 +296,8 @@ void UCammieContext::Render(float deltaTime) {
 
 	if((mPlaying && (mCurrentFrame != mEndFrame)) || mUpdateCameraPosition){
 		if(mViewCamera){
-			mCamera.mFovy = UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame);
+			mCamera.mFovy = glm::radians(UpdateCameraAnimationTrack(FovYTrack, mCurrentFrame));
+			mCamera.mTwist = UpdateCameraAnimationTrack(TwistTrack, mCurrentFrame);
 
 			mCamera.SetCenter(centerPos);
 			mCamera.SetEye(eyePos);

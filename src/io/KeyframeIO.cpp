@@ -53,7 +53,7 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
             keyframe.value = stream->readFloat();
         } else {
             keyframe.frame = stream->readFloat();
-            keyframe.value = stream->readFloat();
+                keyframe.value = stream->readFloat();
 
             if(mType == ETrackType::CKAN){
                 keyframe.inslope = stream->readFloat();
