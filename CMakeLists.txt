@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.8)
 project(cammie)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS -g)
+
+set(CMAKE_C_FLAGS -O3)
+set(CMAKE_CXX_FLAGS -O3)
+
+
 
 add_subdirectory(lib)
 
@@ -16,7 +20,16 @@ file(GLOB_RECURSE CAMMIE_SRC
     # ImGuiFileDialog
     "lib/ImGuiFileDialog/ImGuiFileDialog/*.cpp"
 )
-find_package(ICU 61.0 COMPONENTS uc i18n REQUIRED)
+
+find_package(Iconv REQUIRED)
+
 add_executable(cammie ${CAMMIE_SRC})
-target_include_directories(cammie PUBLIC include include/util lib/glfw/include lib/ImGuiFileDialog/ImGuiFileDialog/ lib/libgctools/include lib/fmt/include)
-target_link_libraries(cammie PUBLIC j3dultra imgui glfw gctools ICU::uc ICU::i18n fmt)
+target_include_directories(cammie PUBLIC include include/util lib/glfw/include lib/ImGuiFileDialog/ImGuiFileDialog/ lib/libgctools/include lib/fmt/include ${Iconv_INCLUDE_DIRS})
+
+if(UNIX)
+target_link_libraries(cammie PUBLIC imgui glfw gctools fmt j3dultra ${ICONV_LIBRARIES})
+endif(UNIX)
+
+if(WIN32)
+target_link_libraries(cammie PUBLIC imgui glfw gctools fmt j3dultra ${ICONV_LIBRARIES} ssp)
+endif(WIN32)
