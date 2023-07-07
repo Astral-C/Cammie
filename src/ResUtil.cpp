@@ -124,11 +124,11 @@ bool SResUtility::SGCResourceManager::SaveArchiveCompressed(const char* path, GC
 void SResUtility::SOptions::LoadOptions(){
 	auto optionsPath = std::filesystem::current_path() / "settings.ini";
 	if(std::filesystem::exists(optionsPath)){
-		ini_t* config = ini_load(optionsPath.c_str());
+		ini_t* config = ini_load(optionsPath.string().c_str());
 		if(config == nullptr) return;
 
-		const char* path = ini_get(config, "settings", "root");
-		if(path != nullptr) mRootPath = std::filesystem::path(path);
+		const char* path = ini_get(config, "settings", "object_dir");
+		if(path != nullptr) mObjectDir = std::filesystem::path(path);
 		ini_free(config);
 	}
 }
@@ -138,7 +138,7 @@ void SResUtility::SOptions::RenderOptionMenu(){
 	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
 	if (ImGui::BeginPopupModal("Options", NULL, ImGuiWindowFlags_AlwaysAutoResize)){
-		ImGui::Text(fmt::format("Root Path: {0}", mRootPath == "" ? "(Not Set)" : mRootPath.string()).data());
+		ImGui::Text(fmt::format("Objects Path: {0}", mObjectDir == "" ? "(Not Set)" : mObjectDir.string()).data());
 		ImGui::SameLine();
 		if(ImGui::Button("Open")){
 			mSelectRootDialogOpen = true;
@@ -146,7 +146,7 @@ void SResUtility::SOptions::RenderOptionMenu(){
 
 		if(ImGui::Button("Save")){
 			std::ofstream settingsFile(std::filesystem::current_path() / "settings.ini");
-			settingsFile << fmt::format("[settings]\nroot={0}", mRootPath.string());
+			settingsFile << fmt::format("[settings]\nobject_dir={0}", mObjectDir.string());
 			settingsFile.close();
 			ImGui::CloseCurrentPopup();
 		}
@@ -157,11 +157,14 @@ void SResUtility::SOptions::RenderOptionMenu(){
 			ImGui::CloseCurrentPopup();
 		}
 
-		if(mSelectRootDialogOpen) ImGuiFileDialog::Instance()->OpenDialog("OpenRootDialog", "Choose Game Root", nullptr, ".");
+		if(mSelectRootDialogOpen && !ImGuiFileDialog::Instance()->IsOpened("OpenRootDialog")){
+			ImGuiFileDialog::Instance()->Close();
+			ImGuiFileDialog::Instance()->OpenDialog("OpenRootDialog", "Choose ObjectData path", nullptr, ".");
+		}
 
 		if (ImGuiFileDialog::Instance()->Display("OpenRootDialog")) {
 			if (ImGuiFileDialog::Instance()->IsOk()) {
-				mRootPath = ImGuiFileDialog::Instance()->GetFilePathName();
+				mObjectDir = ImGuiFileDialog::Instance()->GetFilePathName();
 
 				mSelectRootDialogOpen = false;
 			} else {

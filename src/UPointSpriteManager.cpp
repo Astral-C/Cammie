@@ -142,7 +142,7 @@ void CPointSpriteManager::SetBillboardTexture(std::filesystem::path ImagePath, i
 	if(TextureIndex > mTextureCount || !std::filesystem::exists(ImagePath)) return;
 
 	int x,y,n;
-	unsigned char* img = stbi_load(ImagePath.c_str(), &x, &y, &n, 0);
+	unsigned char* img = stbi_load(ImagePath.string().c_str(), &x, &y, &n, 0);
 
     glBindTexture(GL_TEXTURE_2D_ARRAY, mTextureID);
     glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, TextureIndex, mBillboardResolution, mBillboardResolution, 1, GL_RGBA, GL_UNSIGNED_BYTE, img);

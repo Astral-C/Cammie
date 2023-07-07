@@ -29,7 +29,7 @@ namespace SResUtility
 		bool mSelectRootDialogOpen;
 		
 		public:
-			std::filesystem::path mRootPath;
+			std::filesystem::path mObjectDir;
 
 			void RenderOptionMenu();
 			void LoadOptions();

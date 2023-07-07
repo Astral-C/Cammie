@@ -38,11 +38,11 @@ CGalaxyRenderer::~CGalaxyRenderer(){
 }
 
 void CGalaxyRenderer::LoadModel(std::string modelName){
-	std::filesystem::path modelPath = std::filesystem::path(Options.mRootPath) / "DATA" / "files" / "ObjectData" / (modelName + ".arc");
+	std::filesystem::path modelPath = std::filesystem::path(Options.mObjectDir) / (modelName + ".arc");
 	
 	if(std::filesystem::exists(modelPath)){
 		GCarchive modelArc;
-		GCResourceManager.LoadArchive(modelPath.c_str(), &modelArc);
+		GCResourceManager.LoadArchive(modelPath.string().c_str(), &modelArc);
 		for (GCarcfile* file = modelArc.files; file < modelArc.files + modelArc.filenum; file++){
 			if(std::filesystem::path(file->name).extension() == ".bdl"){
 				J3DModelLoader Loader;
@@ -83,7 +83,7 @@ std::vector<std::pair<std::string, glm::mat4>> CGalaxyRenderer::LoadZoneLayer(GC
 				glm::vec3 position = {ObjInfo.GetFloat(objEntry, "pos_x"), ObjInfo.GetFloat(objEntry, "pos_y"), ObjInfo.GetFloat(objEntry, "pos_z")};
 				glm::vec3 rotation = {ObjInfo.GetFloat(objEntry, "dir_x"), ObjInfo.GetFloat(objEntry, "dir_y"), ObjInfo.GetFloat(objEntry, "dir_z")};
 				glm::vec3 scale = {ObjInfo.GetFloat(objEntry, "scale_x"), ObjInfo.GetFloat(objEntry, "scale_y"), ObjInfo.GetFloat(objEntry, "scale_z")};
-				if(Options.mRootPath != "" && !ModelCache.contains(modelName)){
+				if(Options.mObjectDir != "" && !ModelCache.contains(modelName)){
 					LoadModel(modelName);
 				}
 				objects.push_back({modelName, computeTransform(scale, rotation, position)});
@@ -102,7 +102,7 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalax
 
 	GCarchive scenarioArchive;
 
-	std::string name = (galaxy_path / std::string(".")).parent_path().filename();
+	std::string name = (galaxy_path / std::string(".")).parent_path().filename().string();
 
     //Get scenario bcsv (its the only file in galaxy_path)
 
@@ -111,7 +111,7 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalax
 		return;
 	}
 
-    GCResourceManager.LoadArchive((galaxy_path / (name + "Scenario.arc")).c_str(), &scenarioArchive);
+    GCResourceManager.LoadArchive((galaxy_path / (name + "Scenario.arc")).string().c_str(), &scenarioArchive);
 
     for(GCarcfile* file = scenarioArchive.files; file < scenarioArchive.files + scenarioArchive.filenum; file++){
         
@@ -150,7 +150,7 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalax
                 }
 
 				GCarchive zoneArchive;
-				GCResourceManager.LoadArchive(zonePath.c_str(), &zoneArchive);
+				GCResourceManager.LoadArchive(zonePath.string().c_str(), &zoneArchive);
 				
 				std::map<std::string, std::pair<std::vector<std::pair<std::string, glm::mat4>>, bool>> zone;
 

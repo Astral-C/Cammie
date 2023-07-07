@@ -26,7 +26,7 @@
 
 
 bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSelection){
-	bool selected;
+	bool selected = false;
 	ImGui::BeginNeoTimelineEx(label.data());
 		for(auto&& key : track->mKeys){
 			ImGui::NeoKeyframe(&key);
@@ -88,11 +88,11 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 
 	if(!hasNext) return prevKeyframe.value;
 
-	//if(track->mType == ETrackType::CKAN){
-	//	return hermiteInterpolation(prevKeyframe.value, prevKeyframe.outslope, nextKeyframe.value, nextKeyframe.inslope, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
-	//} else {
-	return glm::mix(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
-	//}
+	if(track.mType == ETrackType::CKAN){
+		return hermiteInterpolation(prevKeyframe.value, prevKeyframe.outslope * 0.1f, nextKeyframe.value, nextKeyframe.inslope * 0.1f, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	} else {
+		return glm::mix(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+	}
 }
 
 
@@ -132,7 +132,7 @@ UCammieContext::UCammieContext(){
 	GCResourceManager.Init();
 
 	ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF((std::filesystem::current_path() / "res/NotoSansJP-Regular.otf").c_str(), 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+    io.Fonts->AddFontFromFileTTF((std::filesystem::current_path() / "res/NotoSansJP-Regular.otf").string().c_str(), 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	mCurrentFrame = mStartFrame = 0;
 	mEndFrame = 10;
@@ -235,6 +235,7 @@ void UCammieContext::Render(float deltaTime) {
 	ImGui::Begin("detailWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 		ImGui::Text("Selected Keyframe");
 		ImGui::Separator();
+
 		if(selectedKeyframe != -1 && selectedTrack != nullptr && selectedTrack->mFrames.count(selectedKeyframe) != 0){
 			ImGui::InputFloat("Value", &selectedTrack->mFrames.at(selectedKeyframe).value);
 
@@ -379,7 +380,7 @@ void UCammieContext::RenderMenuBar() {
 	}
 	if (bIsGalaxyDialogOpen){
 		//TODO: make this ensure the selected root is a galaxy/2 root!
-		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, Options.mRootPath == "" ? "." : Options.mRootPath / "DATA" / "files" / "StageData" / ".", "", std::bind(&GalaxySelectPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+		ImGuiFileDialog::Instance()->OpenDialog("OpenGalaxyDialog", "Choose Stage Directory", nullptr, ".", std::bind(&GalaxySelectPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 	}
 	if (bIsSaveDialogOpen) {
 		ImGuiFileDialog::Instance()->OpenDialog("SaveFileDialog", "Save Camera File", "Camera Animation (*.canm){.canm}", ".", 1, nullptr, ImGuiFileDialogFlags_ConfirmOverwrite);
@@ -396,6 +397,8 @@ void UCammieContext::RenderMenuBar() {
 				std::cout << "Failed to load camera file " << FilePath << "! Exception: " << e.what() << "\n";
 			}
 
+			bIsFileDialogOpen = false;
+		} else {
 			bIsFileDialogOpen = false;
 		}
 
@@ -414,7 +417,10 @@ void UCammieContext::RenderMenuBar() {
 			}
 
 			bIsGalaxyDialogOpen = false;
+		} else {
+			bIsGalaxyDialogOpen = false;
 		}
+
 
 		ImGuiFileDialog::Instance()->Close();
 	}
@@ -432,6 +438,8 @@ void UCammieContext::RenderMenuBar() {
 				std::cout << "Failed to save model to " << FilePath << "! Exception: " << e.what() << "\n";
 			}
 
+			bIsSaveDialogOpen = false;
+		} else {
 			bIsSaveDialogOpen = false;
 		}
 
