@@ -3,10 +3,7 @@ project(cammie)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_C_FLAGS -O3)
-set(CMAKE_CXX_FLAGS -O3)
-
-
+set(CMAKE_BUILD_TYPE Debug)
 
 add_subdirectory(lib)
 
@@ -31,5 +28,5 @@ target_link_libraries(cammie PUBLIC imgui glfw gctools fmt j3dultra ${ICONV_LIBR
 endif(UNIX)
 
 if(WIN32)
-target_link_libraries(cammie PUBLIC imgui glfw gctools fmt j3dultra ${ICONV_LIBRARIES} ssp)
+target_link_libraries(cammie PUBLIC imgui glfw gctools fmt j3dultra Iconv::Iconv)
 endif(WIN32)

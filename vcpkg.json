@@ -1,0 +1,9 @@
+{
+    "name" : "cammie",
+    "version-string" : "cammie-win",
+    "dependencies": [
+        "libiconv",
+        "zlib",
+        "libpng"
+    ]
+}
