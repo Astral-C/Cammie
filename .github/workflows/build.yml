@@ -82,7 +82,6 @@ jobs:
           cp -r res cammie-build/res
           ls build
           cp build/cammie.exe cammie-build/cammie.exe
-          cp build/*.dll cammie-build/*.dll
       - name: Upload App Windows
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v3
