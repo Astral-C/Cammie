@@ -1,0 +1,7 @@
+{
+    "name" : "cammie",
+    "version-string" : "cammie-win",
+    "dependencies": [
+        "icu"
+    ]
+}
