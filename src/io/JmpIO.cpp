@@ -270,48 +270,6 @@ uint32_t LJmpIO::CalculateNewEntrySize()
 	return newSize;
 }
 
-bool LJmpIO::Save(std::vector<std::shared_ptr<LEntityDOMNode>> entities, bStream::CMemoryStream& stream)
-{
-	/*
-	stream.writeInt32((int32_t)entities.size());
-	stream.writeInt32(mFieldCount);
-	stream.writeUInt32(mFieldCount * sizeof(LJmpFieldInfo) + JMP_HEADER_SIZE);
-
-	uint32_t newEntrySize = CalculateNewEntrySize();
-	stream.writeUInt32(newEntrySize);
-
-	// Write the field info data
-	for (const LJmpFieldInfo f : mFields)
-	{
-		stream.writeUInt32(f.Hash);
-		stream.writeUInt32(f.Bitmask);
-		stream.writeUInt16(f.Start);
-		stream.writeUInt8(f.Shift);
-		stream.writeUInt8((uint8_t)f.Type);
-	}
-
-	// Discard old entry data
-	if (mData != nullptr)
-		delete[] mData;
-
-	uint32_t newDataSize = (entities.size() * newEntrySize + 31) & ~31;
-
-	// Allocate new entry data. Empty braces zero-initialize the memory region!
-	mData = new uint8_t[newDataSize] {};
-	if (mData == nullptr)
-		return false;
-
-	for (uint32_t i = 0; i < entities.size(); i++)
-	{
-		entities[i]->Serialize(this, i);
-	}
-
-	stream.writeBytes((char*)mData, newDataSize);
-
-	return true;
-	*/
-}
-
 bool LJmpIO::SetUnsignedInt(uint32_t entry_index, std::string field_name, uint32_t value)
 {
 	const LJmpFieldInfo* field = FetchJmpFieldInfo(field_name);
