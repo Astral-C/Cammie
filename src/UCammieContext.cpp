@@ -24,6 +24,12 @@
 #include "fmt/core.h"
 #include "ResUtil.hpp"
 
+const glm::mat4 HERMITE_MTX(
+    2.0f, -2.0f, 1.0f, 1.0f,
+    -3.0f, 3.0f, -2.0f, -1.0f,
+    0.0f, 0.0f, 1.0f, 0.0f,
+    1.0f, 0.0f, 0.0f, 0.0f
+);
 
 bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSelection){
 	bool selected = false;
@@ -60,14 +66,14 @@ bool RenderTimelineTrack(std::string label, CTrackCommon* track, int* keyframeSe
 }
 
 float hermiteInterpolation(float point0, float tangent0, float point1, float tangent1, float t) {
-    float t2 = t * t;
-    float t3 = t2 * t;
-    float h1 = 2 * t3 - 3 * t2 + 1;
-    float h2 = -2 * t3 + 3 * t2;
-    float h3 = t3 - 2 * t2 + t;
-    float h4 = t3 - t2;
 
-    return h1 * point0 + h2 * point1 + h3 * tangent0 + h4 * tangent1;
+	glm::vec4 time = glm::vec4(t * t * t, t * t, t, 1.0f);
+	glm::vec4 values = glm::vec4(point0, point1, tangent0 * t, tangent1 * t);
+
+	glm::vec4 transform = HERMITE_MTX * time;
+	glm::vec4 res = transform * values;
+
+	return res.x + res.y + res.z + res.w;
 }
 
 //TODO: proper interpolation
@@ -89,7 +95,7 @@ inline float UpdateCameraAnimationTrack(CTrackCommon track, int currentFrame){
 	if(!hasNext) return prevKeyframe.value;
 
 	if(track.mType == ETrackType::CKAN){
-		return hermiteInterpolation(prevKeyframe.value, prevKeyframe.outslope * 0.1f, nextKeyframe.value, nextKeyframe.inslope * 0.1f, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
+		return hermiteInterpolation(prevKeyframe.value, prevKeyframe.outslope, nextKeyframe.value, nextKeyframe.inslope, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
 	} else {
 		return glm::mix(prevKeyframe.value, nextKeyframe.value, (currentFrame - prevKeyframe.frame) / (nextKeyframe.frame - prevKeyframe.frame));
 	}
@@ -275,8 +281,8 @@ void UCammieContext::Render(float deltaTime) {
 	
 	//Render Models here
 
+	mGalaxyRenderer.RenderGalaxy(deltaTime, &mCamera);
 	mGrid.Render(mCamera.GetPosition(), mCamera.GetProjectionMatrix(), mCamera.GetViewMatrix());
-	mGalaxyRenderer.RenderGalaxy(deltaTime);
 	mBillboardManager.Draw(&mCamera);
 
 	glm::vec3 eyePos;// = mCamera.GetEye();

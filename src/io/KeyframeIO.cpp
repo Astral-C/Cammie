@@ -53,10 +53,10 @@ void CTrackCommon::LoadTrack(bStream::CStream* stream, uint32_t keyframeDataOffs
             keyframe.value = stream->readFloat();
         } else {
             keyframe.frame = stream->readFloat();
-                keyframe.value = stream->readFloat();
+            keyframe.value = stream->readFloat();
 
             if(mType == ETrackType::CKAN){
-                keyframe.inslope = stream->readFloat();
+                keyframe.inslope = 0; //stream->readFloat();
                 if(slopeFlags != 0){ // symmetric slope if anything other than 0, use same value for in and out
                     keyframe.outslope = stream->readFloat();
                 } else {

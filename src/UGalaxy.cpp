@@ -4,6 +4,20 @@
 
 static std::map<std::string, std::shared_ptr<J3DModelData>> ModelCache;
 
+void GalaxySort(J3DRendering::SortFunctionArgs packets) {
+    std::sort(
+        packets.begin(),
+        packets.end(),
+        [](const J3DRenderPacket& a, const J3DRenderPacket& b) -> bool {
+			if((a.SortKey & 0x01000000) != (b.SortKey & 0x01000000)){
+				return (a.SortKey & 0x01000000) > (b.SortKey & 0x01000000);
+			} else {
+            	return a.Material->Name < b.Material->Name;
+			}
+        }
+    );
+}
+
 glm::mat4 computeTransform(glm::vec3 scale, glm::vec3 dir, glm::vec3 pos){
 	float out[16];
 	float sinX = sin(glm::radians(dir.x)), cosX = cos(glm::radians(dir.x));
@@ -53,6 +67,8 @@ void CGalaxyRenderer::LoadModel(std::string modelName){
 				ModelCache.insert({modelName, data});
 			}
 		}
+	} else {
+		std::cout << "Couldn't find model " << modelName << std::endl;
 	}
 }
 
@@ -95,6 +111,8 @@ std::vector<std::pair<std::string, glm::mat4>> CGalaxyRenderer::LoadZoneLayer(GC
 }
 
 void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalaxy2){
+
+	J3DRendering::SetSortFunction(GalaxySort);
 
 	mZones.clear();
 	mZoneTransforms.clear();
@@ -171,8 +189,9 @@ void CGalaxyRenderer::LoadGalaxy(std::filesystem::path galaxy_path, bool isGalax
 
 	for(auto& [zoneName, zone] : mZones){
 		for(auto& [layerName, layer] : zone){
+			if(!layer.second) continue; //layer not set to visible
 			for(auto& object : layer.first){
-				if(mZoneTransforms.count(zoneName) != 0){
+				if(mZoneTransforms.count(zoneName) != 0 && ModelCache.count(object.first) != 0){
 					object.second = mZoneTransforms.at(zoneName) * object.second;
 				}
 			}
@@ -194,18 +213,35 @@ void CGalaxyRenderer::RenderUI() {
 	}
 }
 
-void CGalaxyRenderer::RenderGalaxy(float dt){
+void CGalaxyRenderer::RenderGalaxy(float dt, USceneCamera* camera){
+
+	uint32_t objectCount = 0;
+	for(auto& [zoneName, zone] : mZones){
+		for(auto& [layerName, layer] : zone){
+			objectCount += layer.first.size();
+		}
+	}
+
+	mRenderables.reserve(objectCount);
+
 	for(auto& [zoneName, zone] : mZones){
 		for(auto& [layerName, layer] : zone){
 			if(!layer.second) continue; //layer not set to visible
 			for(auto& object : layer.first){
-				if(ModelCache.count(object.first) == 0) continue; //TODO: Render placeholder
+				if(mZoneTransforms.count(zoneName) != 0 && ModelCache.count(object.first) != 0){
+					std::shared_ptr<J3DModelInstance> model = ModelCache.at(object.first)->GetInstance();
+					model->SetReferenceFrame(object.second);
 
-				J3DUniformBufferObject::SetEnvelopeMatrices(ModelCache.at(object.first)->GetRestPose().data(), ModelCache.at(object.first)->GetRestPose().size());
-				J3DUniformBufferObject::SetModelMatrix(&object.second);
-
-				ModelCache.at(object.first)->Render(dt);
+					mRenderables.push_back(model);
+				}
 			}
 		}
 	}
+
+	glm::mat4 view = camera->GetViewMatrix();
+	glm::mat4 proj = camera->GetProjectionMatrix();
+
+	J3DRendering::Render(0, camera->GetCenter(), view, proj, mRenderables);
+
+	mRenderables.erase(mRenderables.begin(), mRenderables.end());
 }
