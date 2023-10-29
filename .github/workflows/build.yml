@@ -81,7 +81,7 @@ jobs:
           cp -r res cammie-build/res
           ls build
           cp build/cammie.exe cammie-build/cammie.exe
-          cp build/*.dll cammie-build/*.dll
+#          cp build/*.dll cammie-build/*.dll # they get statically linked for some reason?
       - name: Upload App Windows
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v3
